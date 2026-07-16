@@ -1,0 +1,21 @@
+# Environment variables and secrets
+.env
+.env.local
+*.env
+
+# Dependencies
+node_modules/
+
+# Sensitive data files
+backend/data/*.xlsx
+backend/data/*.xls
+backend/data/*.csv
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
