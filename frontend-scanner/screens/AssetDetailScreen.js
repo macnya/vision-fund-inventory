@@ -1,7 +1,30 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { checkInAssignment } from '../api';
+import AssignModal from './AssignModal';
 
-export default function AssetDetailScreen({ assetData, onBack }) {
+export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
   const { asset, current_assignment } = assetData;
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
+
+  const handleCheckIn = async () => {
+    if (!current_assignment) return;
+    setCheckingIn(true);
+    try {
+      await checkInAssignment(current_assignment.id);
+      Alert.alert('Success', 'Asset checked in.', [{ text: 'OK', onPress: onBack }]);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to check in asset.');
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
+  const handleAssigned = () => {
+    setShowAssignModal(false);
+    Alert.alert('Success', 'Asset assigned.', [{ text: 'OK', onPress: onBack }]);
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -29,9 +52,26 @@ export default function AssetDetailScreen({ assetData, onBack }) {
         )}
       </View>
 
+      {current_assignment ? (
+        <TouchableOpacity style={styles.actionButton} onPress={handleCheckIn} disabled={checkingIn}>
+          {checkingIn ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionButtonText}>Check In</Text>}
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity style={styles.actionButton} onPress={() => setShowAssignModal(true)}>
+          <Text style={styles.actionButtonText}>Assign / Transfer</Text>
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
         <Text style={styles.backButtonText}>Scan Next Asset</Text>
       </TouchableOpacity>
+
+      <AssignModal
+        visible={showAssignModal}
+        assetId={asset.id}
+        onClose={() => setShowAssignModal(false)}
+        onAssigned={handleAssigned}
+      />
     </ScrollView>
   );
 }
@@ -60,9 +100,13 @@ const styles = StyleSheet.create({
   label: { color: '#777' },
   value: { fontWeight: '500' },
   noAssignment: { color: '#999', fontStyle: 'italic' },
+  actionButton: {
+    backgroundColor: '#2d7a4f', borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4,
+  },
+  actionButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   backButton: {
     backgroundColor: '#1e3a5f', borderRadius: 8, padding: 16,
-    alignItems: 'center', marginTop: 10, marginBottom: 40,
+    alignItems: 'center', marginTop: 12, marginBottom: 40,
   },
   backButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
