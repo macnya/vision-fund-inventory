@@ -54,7 +54,7 @@ export default function ScannerScreen({ onScanSuccess, onLogout }) {
     <View style={styles.container}>
       <CameraView
         style={StyleSheet.absoluteFillObject}
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        barcodeScannerSettings={{ barcodeTypes: ['code128'] }}
         onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
       />
 
