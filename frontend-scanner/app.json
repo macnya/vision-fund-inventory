@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Vision Fund Scanner",
+    "slug": "vision-fund-scanner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true
+  }
+}

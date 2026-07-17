@@ -21,3 +21,8 @@ Thumbs.db
 npm-debug.log*
 
 backend/qrcodes/
+
+# Expo / React Native
+frontend-scanner/node_modules/
+frontend-scanner/.expo/
+frontend-scanner/*.log
