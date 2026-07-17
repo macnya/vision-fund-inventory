@@ -28,6 +28,9 @@ async function run() {
       height: 10,
       includetext: true,
       textxalign: 'center',
+      backgroundcolor: 'FFFFFF',
+      paddingwidth: 10,
+      paddingheight: 10,
     });
 
     fs.writeFileSync(filePath, png);

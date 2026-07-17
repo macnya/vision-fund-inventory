@@ -11,13 +11,16 @@ async function getAssetBarcode(req, res) {
     }
 
     const png = await bwipjs.toBuffer({
-      bcid: 'code128',
-      text: asset_code,
-      scale: 3,
-      height: 10,
-      includetext: true,
-      textxalign: 'center',
-    });
+  bcid: 'code128',
+  text: asset_code,
+  scale: 3,
+  height: 10,
+  includetext: true,
+  textxalign: 'center',
+  backgroundcolor: 'FFFFFF',  // white background, no transparency
+  paddingwidth: 10,
+  paddingheight: 10,
+});
 
     res.set('Content-Type', 'image/png');
     res.send(png);

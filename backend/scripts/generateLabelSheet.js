@@ -49,7 +49,10 @@ async function run() {
       text: asset.asset_code,
       scale: 2,
       height: 8,
-      includetext: false, // we'll draw our own text below for consistent formatting
+      includetext: false,
+      backgroundcolor: 'FFFFFF',
+      paddingwidth: 6,
+      paddingheight: 6,
     });
 
     doc.rect(x, y, LABEL_WIDTH, LABEL_HEIGHT).stroke('#cccccc');
