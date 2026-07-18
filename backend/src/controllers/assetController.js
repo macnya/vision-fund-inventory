@@ -2,13 +2,42 @@ const pool = require('../db/pool');
 
 // GET /assets — list all assets
 async function getAllAssets(req, res) {
+  const { search, category, status, branch } = req.query;
+
   try {
-    const result = await pool.query(`
-      SELECT a.*, ac.name AS category_name
+    let query = `
+      SELECT a.*, ac.name AS category_name,
+        ag.employee_id, ag.location_id,
+        e.name AS employee_name, l.branch, l.physical_location
       FROM asset a
       LEFT JOIN asset_category ac ON a.asset_category_id = ac.id
-      ORDER BY a.created_at DESC
-    `);
+      LEFT JOIN assignment ag ON ag.asset_id = a.id AND ag.returned_date IS NULL
+      LEFT JOIN employee e ON ag.employee_id = e.id
+      LEFT JOIN location l ON ag.location_id = l.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (a.asset_code ILIKE $${params.length} OR a.description ILIKE $${params.length})`;
+    }
+    if (category) {
+      params.push(category);
+      query += ` AND ac.name = $${params.length}`;
+    }
+    if (status) {
+      params.push(status);
+      query += ` AND a.status = $${params.length}`;
+    }
+    if (branch) {
+      params.push(branch);
+      query += ` AND l.branch = $${params.length}`;
+    }
+
+    query += ` ORDER BY a.asset_code LIMIT 200`;
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
