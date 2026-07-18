@@ -13,3 +13,13 @@ api.interceptors.request.use((config) => {
 });
 
 export default api;
+
+export async function fetchAssetDetail(assetCode) {
+  const res = await api.get(`/assets/${encodeURIComponent(assetCode)}`);
+  return res.data;
+}
+
+export async function fetchAssetHistory(assetId) {
+  const res = await api.get(`/assignments/history/${assetId}`);
+  return res.data;
+}
