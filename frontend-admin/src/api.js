@@ -23,3 +23,13 @@ export async function fetchAssetHistory(assetId) {
   const res = await api.get(`/assignments/history/${assetId}`);
   return res.data;
 }
+
+export async function markAssetDisposed({ asset_id, sales_proceeds, disposal_month, notes }) {
+  const res = await api.post('/disposals', { asset_id, sales_proceeds, disposal_month, notes });
+  return res.data;
+}
+
+export async function markAssetLost({ asset_id, notes }) {
+  const res = await api.post('/lost-assets', { asset_id, notes });
+  return res.data;
+}

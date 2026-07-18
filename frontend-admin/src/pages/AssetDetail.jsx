@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchAssetDetail, fetchAssetHistory } from '../api';
+import { fetchAssetDetail, fetchAssetHistory, markAssetDisposed, markAssetLost } from '../api';
 
 export default function AssetDetail({ assetCode, onBack }) {
   const [data, setData] = useState(null);
@@ -21,6 +21,38 @@ export default function AssetDetail({ assetCode, onBack }) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMarkDisposed = async () => {
+    const salesProceeds = prompt('Sales proceeds (leave blank if none):');
+    const notes = prompt('Notes (optional):') || '';
+    if (!window.confirm(`Mark ${data.asset.asset_code} as Disposed?`)) return;
+
+    try {
+      await markAssetDisposed({
+        asset_id: data.asset.id,
+        sales_proceeds: salesProceeds ? parseFloat(salesProceeds) : null,
+        disposal_month: new Date().toISOString().split('T')[0],
+        notes,
+      });
+      alert('Asset marked as disposed.');
+      loadData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to mark as disposed.');
+    }
+  };
+
+  const handleMarkLost = async () => {
+    const notes = prompt('Notes on the loss (optional):') || '';
+    if (!window.confirm(`Report ${data.asset.asset_code} as Lost?`)) return;
+
+    try {
+      await markAssetLost({ asset_id: data.asset.id, notes });
+      alert('Asset reported as lost.');
+      loadData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to report as lost.');
     }
   };
 
@@ -60,6 +92,13 @@ export default function AssetDetail({ assetCode, onBack }) {
           <p style={{ color: '#999', fontStyle: 'italic' }}>Not currently assigned</p>
         )}
       </div>
+
+      {asset.status !== 'Disposed' && asset.status !== 'Lost' && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+          <button onClick={handleMarkDisposed} style={dangerButtonStyle}>Mark as Disposed</button>
+          <button onClick={handleMarkLost} style={warningButtonStyle}>Report as Lost</button>
+        </div>
+      )}
 
       <div style={sectionStyle}>
         <h3>Audit History</h3>
@@ -106,3 +145,5 @@ function Row({ label, value }) {
 const sectionStyle = { background: '#f9f9f9', borderRadius: 10, padding: 20, marginBottom: 20 };
 const cellStyle = { padding: '8px 10px', fontSize: 13 };
 const backButtonStyle = { marginBottom: 20, padding: '8px 16px', background: '#eee', border: 'none', borderRadius: 6, cursor: 'pointer' };
+const dangerButtonStyle = { padding: '10px 16px', background: '#c0392b', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
+const warningButtonStyle = { padding: '10px 16px', background: '#d68910', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
