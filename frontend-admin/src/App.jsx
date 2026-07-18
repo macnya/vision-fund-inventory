@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Login from './pages/Login';
+import AssetList from './pages/AssetList';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -13,16 +14,15 @@ function App() {
     setUser(userData);
   };
 
+  const handleSelectAsset = (assetCode) => {
+    alert(`Detail view for ${assetCode} coming next`);
+  };
+
   if (!user) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
-  return (
-    <div style={{ padding: 40 }}>
-      <h1>Welcome, {user.name}</h1>
-      <p>Asset list coming next.</p>
-    </div>
-  );
+  return <AssetList onSelectAsset={handleSelectAsset} />;
 }
 
 export default App;
