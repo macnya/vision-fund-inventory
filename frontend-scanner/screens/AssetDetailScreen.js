@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { checkInAssignment } from '../api';
 import AssignModal from './AssignModal';
+import * as Location from 'expo-location';
 
 export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
   const { asset, current_assignment } = assetData;
@@ -9,17 +10,24 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
   const [checkingIn, setCheckingIn] = useState(false);
 
   const handleCheckIn = async () => {
-    if (!current_assignment) return;
-    setCheckingIn(true);
-    try {
-      await checkInAssignment(current_assignment.id);
-      Alert.alert('Success', 'Asset checked in.', [{ text: 'OK', onPress: onBack }]);
-    } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to check in asset.');
-    } finally {
-      setCheckingIn(false);
+  if (!current_assignment) return;
+  setCheckingIn(true);
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    let latitude = null, longitude = null;
+    if (status === 'granted') {
+      const loc = await Location.getCurrentPositionAsync({});
+      latitude = loc.coords.latitude;
+      longitude = loc.coords.longitude;
     }
-  };
+    await checkInAssignment(current_assignment.id, { latitude, longitude });
+    Alert.alert('Success', 'Asset checked in.', [{ text: 'OK', onPress: onBack }]);
+  } catch (err) {
+    Alert.alert('Error', err.response?.data?.error || 'Failed to check in asset.');
+  } finally {
+    setCheckingIn(false);
+  }
+};
 
   const handleAssigned = () => {
     setShowAssignModal(false);

@@ -28,12 +28,12 @@ export async function fetchLocations() {
   return res.data;
 }
 
-export async function assignAsset({ asset_id, employee_id, location_id }) {
-  const res = await api.post('/assignments', { asset_id, employee_id, location_id });
+export async function assignAsset({ asset_id, employee_id, location_id, latitude, longitude }) {
+  const res = await api.post('/assignments', { asset_id, employee_id, location_id, latitude, longitude });
   return res.data;
 }
 
-export async function checkInAssignment(assignmentId) {
-  const res = await api.patch(`/assignments/${assignmentId}/return`);
+export async function checkInAssignment(assignmentId, { latitude, longitude } = {}) {
+  const res = await api.patch(`/assignments/${assignmentId}/return`, { latitude, longitude });
   return res.data;
 }

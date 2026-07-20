@@ -46,11 +46,11 @@ async function createAssignment(req, res) {
     );
 
     await client.query(
-      `INSERT INTO scan_log
-        (asset_id, scanned_by, action, from_location_id, to_location_id, from_employee_id, to_employee_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [asset_id, assigned_by, 'Transfer', fromLocationId, location_id || null, fromEmployeeId, employee_id || null]
-    );
+  `INSERT INTO scan_log
+    (asset_id, scanned_by, action, from_location_id, to_location_id, from_employee_id, to_employee_id, latitude, longitude)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+  [asset_id, assigned_by, 'Transfer', fromLocationId, location_id || null, fromEmployeeId, employee_id || null, latitude || null, longitude || null]
+);
 
     await client.query('COMMIT');
     res.status(201).json(newAssignment.rows[0]);
@@ -66,6 +66,7 @@ async function createAssignment(req, res) {
 // PATCH /assignments/:id/return — check an asset back in (unassign it)
 async function returnAssignment(req, res) {
   const { id } = req.params;
+  const { latitude, longitude } = req.body;
   const scanned_by = req.user.id;
 
   const client = await pool.connect();
@@ -96,11 +97,11 @@ async function returnAssignment(req, res) {
     );
 
     await client.query(
-      `INSERT INTO scan_log
-        (asset_id, scanned_by, action, from_location_id, from_employee_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [assignment.asset_id, scanned_by, 'Check-In', assignment.location_id, assignment.employee_id]
-    );
+  `INSERT INTO scan_log
+    (asset_id, scanned_by, action, from_location_id, from_employee_id, latitude, longitude)
+   VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+  [assignment.asset_id, scanned_by, 'Check-In', assignment.location_id, assignment.employee_id, latitude || null, longitude || null]
+);
 
     await client.query('COMMIT');
     res.json({ message: 'Asset checked in successfully' });

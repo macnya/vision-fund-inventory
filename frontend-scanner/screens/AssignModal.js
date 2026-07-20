@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import { fetchEmployees, fetchLocations, assignAsset } from '../api';
+import * as Location from 'expo-location';
 
 export default function AssignModal({ visible, assetId, onClose, onAssigned }) {
   const [employees, setEmployees] = useState([]);
@@ -18,6 +19,17 @@ export default function AssignModal({ visible, assetId, onClose, onAssigned }) {
       loadData();
     }
   }, [visible]);
+
+  async function getCurrentCoords() {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return { latitude: null, longitude: null };
+    const loc = await Location.getCurrentPositionAsync({});
+    return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+  } catch {
+    return { latitude: null, longitude: null };
+  }
+}
 
   const loadData = async () => {
     setLoading(true);
@@ -35,25 +47,28 @@ export default function AssignModal({ visible, assetId, onClose, onAssigned }) {
   };
 
   const handleConfirm = async () => {
-    if (!selectedEmployee && !selectedLocation) {
-      Alert.alert('Select something', 'Choose an employee and/or a location.');
-      return;
-    }
+  if (!selectedEmployee && !selectedLocation) {
+    Alert.alert('Select something', 'Choose an employee and/or a location.');
+    return;
+  }
 
-    setSubmitting(true);
-    try {
-      await assignAsset({
-        asset_id: assetId,
-        employee_id: selectedEmployee,
-        location_id: selectedLocation,
-      });
-      onAssigned();
-    } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to assign asset.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  setSubmitting(true);
+  try {
+    const coords = await getCurrentCoords();
+    await assignAsset({
+      asset_id: assetId,
+      employee_id: selectedEmployee,
+      location_id: selectedLocation,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+    });
+    onAssigned();
+  } catch (err) {
+    Alert.alert('Error', err.response?.data?.error || 'Failed to assign asset.');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
