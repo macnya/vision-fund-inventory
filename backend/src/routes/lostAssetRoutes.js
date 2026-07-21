@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { createLostAssetRecord, getAllLostAssets } = require('../controllers/lostAssetController');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken, requireRole, ROLES } = require('../middleware/authMiddleware');
 
 router.use(verifyToken);
 router.get('/', getAllLostAssets);
-router.post('/', createLostAssetRecord);
+router.post('/', requireRole(ROLES.ADMIN), createLostAssetRecord);
 
 module.exports = router;

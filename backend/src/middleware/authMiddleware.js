@@ -18,11 +18,43 @@ function verifyToken(req, res, next) {
   }
 }
 
+// Canonical role names used across the app
+const ROLES = {
+  ADMIN: 'IT Admin',
+  OFFICER: 'IT Officer',
+  BRANCH_MANAGER: 'Branch Manager',
+  AUDITOR: 'Auditor',
+};
+
+// Legacy accounts created before the role rename may still have role = 'Admin'.
+// Treat that as equivalent to 'IT Admin' so existing admins aren't locked out.
+function isAdminRole(role) {
+  return role === ROLES.ADMIN || role === 'Admin';
+}
+
 function requireAdmin(req, res, next) {
-  if (req.user.role !== 'Admin') {
+  if (!req.user || !isAdminRole(req.user.role)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
 }
 
-module.exports = { verifyToken, requireAdmin };
+// General-purpose role gate: requireRole(ROLES.ADMIN, ROLES.OFFICER)
+function requireRole(...allowedRoles) {
+  return function (req, res, next) {
+    if (!req.user) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+    const ok = allowedRoles.some((r) =>
+      r === ROLES.ADMIN ? isAdminRole(req.user.role) : req.user.role === r
+    );
+    if (!ok) {
+      return res.status(403).json({
+        error: `Access denied. Requires one of: ${allowedRoles.join(', ')}`,
+      });
+    }
+    next();
+  };
+}
+
+module.exports = { verifyToken, requireAdmin, requireRole, ROLES };

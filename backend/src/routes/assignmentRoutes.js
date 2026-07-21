@@ -1,31 +1,18 @@
 const express = require('express');
 const router = express.Router();
 
-const controller = require('../controllers/assignmentController');
-const auth = require('../middleware/authMiddleware');
-
-console.log('========== ASSIGNMENT ROUTE DEBUG ==========');
-console.log('Controller exports:', controller);
-console.log('Auth exports:', auth);
-
 const {
   createAssignment,
   returnAssignment,
   getAssetHistory,
-} = controller;
+} = require('../controllers/assignmentController');
 
-const { verifyToken } = auth;
-
-console.log('createAssignment:', typeof createAssignment);
-console.log('returnAssignment:', typeof returnAssignment);
-console.log('getAssetHistory:', typeof getAssetHistory);
-console.log('verifyToken:', typeof verifyToken);
-console.log('============================================');
+const { verifyToken, requireRole, ROLES } = require('../middleware/authMiddleware');
 
 router.use(verifyToken);
 
-router.post('/', createAssignment);
-router.patch('/:id/return', returnAssignment);
+router.post('/', requireRole(ROLES.ADMIN, ROLES.OFFICER), createAssignment);
+router.patch('/:id/return', requireRole(ROLES.ADMIN, ROLES.OFFICER), returnAssignment);
 router.get('/history/:asset_id', getAssetHistory);
 
 module.exports = router;
