@@ -9,6 +9,7 @@ const employeeRoutes = require('./routes/employeeRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const disposalRoutes = require('./routes/disposalRoutes');
 const lostAssetRoutes = require('./routes/lostAssetRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
 app.use(cors());
@@ -23,6 +24,21 @@ app.use('/employees', employeeRoutes);
 app.use('/locations', locationRoutes);
 app.use('/disposals', disposalRoutes);
 app.use('/lost-assets', lostAssetRoutes);
+app.use('/dashboard', dashboardRoutes);
+
+// 404 for unknown routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+// Catch malformed JSON bodies and any other errors, return JSON instead of Express's default HTML page
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Invalid JSON in request body' });
+  }
+  console.error(err);
+  res.status(500).json({ error: 'Server error' });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
