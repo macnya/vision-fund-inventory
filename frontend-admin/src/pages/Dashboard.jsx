@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchDashboardStats } from '../api';
+import { colors } from '../theme';
 
 export default function Dashboard({ onNavigate }) {
   const [stats, setStats] = useState(null);
@@ -15,7 +16,7 @@ export default function Dashboard({ onNavigate }) {
   if (loading) return <div style={{ padding: 30 }}>Loading dashboard...</div>;
   if (!stats) return <div style={{ padding: 30 }}>Failed to load dashboard.</div>;
 
-  const categoryColors = ['#1e3a5f', '#2d7a4f', '#d68910', '#c0392b', '#8e44ad', '#16a085', '#7f8c8d', '#2980b9'];
+  const categoryColors = ['#E8720C', '#1a1a1a', '#B85A0A', '#4a4a4a', '#F5A05A', '#2a2a2a', '#D9955C', '#6a6a6a'];
 
   const totalCategoryCount = stats.categories.reduce((sum, c) => sum + c.count, 0);
   let cumulativePercent = 0;
@@ -32,16 +33,16 @@ export default function Dashboard({ onNavigate }) {
 
   return (
     <div style={{ padding: 30, maxWidth: 1100, margin: '0 auto' }}>
-      <h1 style={{ color: '#1e3a5f' }}>Vision Fund Dashboard</h1>
+      <h1 style={{ color: colors.black }}>Vision Fund Dashboard</h1>
 
       <div style={kpiRowStyle}>
-        <KpiCard label="Total Assets" value={stats.totalAssets} color="#1e3a5f" onClick={() => onNavigate('list', '')} />
-        <KpiCard label="Assigned" value={stats.assigned} color="#2d7a4f" onClick={() => onNavigate('list', 'Assigned')} />
-        <KpiCard label="In Stock" value={stats.inStock} color="#2980b9" onClick={() => onNavigate('list', 'In Stock')} />
-        <KpiCard label="Disposed" value={stats.disposed} color="#c0392b" onClick={() => onNavigate('list', 'Disposed')} />
-        <KpiCard label="Lost" value={stats.lost} color="#d68910" onClick={() => onNavigate('list', 'Lost')} />
-        <KpiCard label="Employees" value={stats.employees} color="#8e44ad" />
-        <KpiCard label="Branches" value={stats.branches} color="#16a085" />
+        <KpiCard label="Total Assets" value={stats.totalAssets} color={colors.primary} onClick={() => onNavigate('list', '')} />
+        <KpiCard label="Assigned" value={stats.assigned} color={colors.black} onClick={() => onNavigate('list', 'Assigned')} />
+        <KpiCard label="In Stock" value={stats.inStock} color={colors.primaryDark} onClick={() => onNavigate('list', 'In Stock')} />
+        <KpiCard label="Disposed" value={stats.disposed} color={colors.danger} onClick={() => onNavigate('list', 'Disposed')} />
+        <KpiCard label="Lost" value={stats.lost} color={colors.warning} onClick={() => onNavigate('list', 'Lost')} />
+        <KpiCard label="Employees" value={stats.employees} color={colors.black} />
+        <KpiCard label="Branches" value={stats.branches} color={colors.primary} />
       </div>
 
       <div style={{ display: 'flex', gap: 20, marginTop: 30, flexWrap: 'wrap' }}>
@@ -68,7 +69,7 @@ export default function Dashboard({ onNavigate }) {
               <div style={{ background: '#eee', borderRadius: 4, height: 10 }}>
                 <div style={{
                   width: (b.count / maxBranchCount * 100) + '%',
-                  background: '#1e3a5f',
+                  background: colors.primary,
                   height: 10,
                   borderRadius: 4,
                 }} />
@@ -82,7 +83,7 @@ export default function Dashboard({ onNavigate }) {
         <h3>Recent Activity</h3>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ textAlign: 'left', background: '#f4f5f7' }}>
+            <tr style={{ textAlign: 'left', background: colors.gray }}>
               <th style={cellStyle}>Date</th>
               <th style={cellStyle}>Action</th>
               <th style={cellStyle}>Asset</th>
@@ -119,12 +120,12 @@ function KpiCard({ label, value, color, onClick }) {
       onMouseLeave={(e) => { if (onClick) e.currentTarget.style.transform = 'translateY(0)'; }}
     >
       <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 13, color: '#777' }}>{label}</div>
+      <div style={{ fontSize: 13, color: colors.grayText }}>{label}</div>
     </div>
   );
 }
 
 const kpiRowStyle = { display: 'flex', gap: 14, flexWrap: 'wrap' };
-const kpiCardStyle = { background: '#fff', borderRadius: 10, padding: '16px 20px', minWidth: 120, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
-const panelStyle = { background: '#fff', borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flex: 1, minWidth: 320 };
+const kpiCardStyle = { background: colors.white, borderRadius: 10, padding: '16px 20px', minWidth: 120, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' };
+const panelStyle = { background: colors.white, borderRadius: 10, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flex: 1, minWidth: 320 };
 const cellStyle = { padding: '8px 10px', fontSize: 13 };

@@ -6,6 +6,8 @@ import AssetDetail from './pages/AssetDetail';
 import CreateEmployee from './pages/CreateEmployee';
 import CreateLocation from './pages/CreateLocation';
 import UserManagement from './pages/UserManagement';
+import logo from './assets/logo.png';
+import { colors } from './theme';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -81,13 +83,16 @@ function App() {
   return (
     <div>
       <div style={topNavStyle}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button style={tabStyle(view === 'dashboard')} onClick={() => setView('dashboard')}>Dashboard</button>
-          <button style={tabStyle(view === 'list')} onClick={() => setView('list')}>Assets</button>
-          <button style={tabStyle(view === 'users')} onClick={() => setView('users')}>IT Staff</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <img src={logo} alt="Vision Fund" style={{ height: 36 }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={tabStyle(view === 'dashboard')} onClick={() => setView('dashboard')}>Dashboard</button>
+            <button style={tabStyle(view === 'list')} onClick={() => setView('list')}>Assets</button>
+            <button style={tabStyle(view === 'users')} onClick={() => setView('users')}>IT Staff</button>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 13, color: '#555' }}>{user.name}</span>
+          <span style={{ fontSize: 13, color: colors.grayText }}>{user.name}</span>
           <button style={logoutButtonStyle} onClick={handleLogout}>Log Out</button>
         </div>
       </div>
@@ -99,16 +104,17 @@ function App() {
 function tabStyle(active) {
   return {
     padding: '8px 16px',
-    background: active ? '#1e3a5f' : '#eee',
-    color: active ? '#fff' : '#333',
+    background: active ? colors.primary : colors.gray,
+    color: active ? colors.white : colors.black,
     border: 'none',
     borderRadius: 6,
     cursor: 'pointer',
+    fontWeight: active ? 600 : 400,
   };
 }
 
-const navButtonStyle = { padding: '8px 16px', background: '#2d7a4f', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
-const topNavStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 30px', borderBottom: '1px solid #eee', background: '#fafafa' };
-const logoutButtonStyle = { padding: '6px 12px', background: '#eee', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
+const navButtonStyle = { padding: '8px 16px', background: colors.success, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };
+const topNavStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 30px', borderBottom: '2px solid ' + colors.primary, background: colors.black };
+const logoutButtonStyle = { padding: '6px 12px', background: colors.primary, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
 
 export default App;
