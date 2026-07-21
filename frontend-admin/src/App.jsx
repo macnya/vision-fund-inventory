@@ -10,6 +10,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('dashboard'); // 'dashboard' | 'list' | 'detail' | 'newEmployee' | 'newLocation'
   const [selectedAssetCode, setSelectedAssetCode] = useState(null);
+  const [listInitialStatus, setListInitialStatus] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -51,18 +52,28 @@ function App() {
       />
     );
   } else if (view === 'list') {
-    content = (
-      <div>
-        <div style={{ display: 'flex', gap: 10, padding: '20px 30px 0' }}>
-          <button style={navButtonStyle} onClick={() => setView('newEmployee')}>+ New Employee</button>
-          <button style={navButtonStyle} onClick={() => setView('newLocation')}>+ New Location</button>
-        </div>
-        <AssetList onSelectAsset={(code) => { setSelectedAssetCode(code); setView('detail'); }} />
+  content = (
+    <div>
+      <div style={{ display: 'flex', gap: 10, padding: '20px 30px 0' }}>
+        <button style={navButtonStyle} onClick={() => setView('newEmployee')}>+ New Employee</button>
+        <button style={navButtonStyle} onClick={() => setView('newLocation')}>+ New Location</button>
       </div>
-    );
-  } else {
-    content = <Dashboard />;
-  }
+      <AssetList
+        onSelectAsset={(code) => { setSelectedAssetCode(code); setView('detail'); }}
+        initialStatus={listInitialStatus}
+      />
+    </div>
+  );
+} else {
+  content = (
+    <Dashboard
+      onNavigate={(targetView, status) => {
+        setListInitialStatus(status || '');
+        setView(targetView);
+      }}
+    />
+  );
+}
 
   return (
     <div>

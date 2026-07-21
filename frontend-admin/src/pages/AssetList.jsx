@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
 
-export default function AssetList({ onSelectAsset }) {
+export default function AssetList({ onSelectAsset, initialStatus = '' }) {
   const [assets, setAssets] = useState([]);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(initialStatus);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {

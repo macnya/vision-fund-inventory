@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchDashboardStats } from '../api';
 
-export default function Dashboard() {
+export default function Dashboard({ onNavigate }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -35,11 +35,11 @@ export default function Dashboard() {
       <h1 style={{ color: '#1e3a5f' }}>Vision Fund Dashboard</h1>
 
       <div style={kpiRowStyle}>
-        <KpiCard label="Total Assets" value={stats.totalAssets} color="#1e3a5f" />
-        <KpiCard label="Assigned" value={stats.assigned} color="#2d7a4f" />
-        <KpiCard label="In Stock" value={stats.inStock} color="#2980b9" />
-        <KpiCard label="Disposed" value={stats.disposed} color="#c0392b" />
-        <KpiCard label="Lost" value={stats.lost} color="#d68910" />
+        <KpiCard label="Total Assets" value={stats.totalAssets} color="#1e3a5f" onClick={() => onNavigate('list', '')} />
+        <KpiCard label="Assigned" value={stats.assigned} color="#2d7a4f" onClick={() => onNavigate('list', 'Assigned')} />
+        <KpiCard label="In Stock" value={stats.inStock} color="#2980b9" onClick={() => onNavigate('list', 'In Stock')} />
+        <KpiCard label="Disposed" value={stats.disposed} color="#c0392b" onClick={() => onNavigate('list', 'Disposed')} />
+        <KpiCard label="Lost" value={stats.lost} color="#d68910" onClick={() => onNavigate('list', 'Lost')} />
         <KpiCard label="Employees" value={stats.employees} color="#8e44ad" />
         <KpiCard label="Branches" value={stats.branches} color="#16a085" />
       </div>
@@ -105,9 +105,19 @@ export default function Dashboard() {
   );
 }
 
-function KpiCard({ label, value, color }) {
+function KpiCard({ label, value, color, onClick }) {
   return (
-    <div style={{ ...kpiCardStyle, borderTop: '4px solid ' + color }}>
+    <div
+      onClick={onClick}
+      style={{
+        ...kpiCardStyle,
+        borderTop: '4px solid ' + color,
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'transform 0.1s',
+      }}
+      onMouseEnter={(e) => { if (onClick) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+      onMouseLeave={(e) => { if (onClick) e.currentTarget.style.transform = 'translateY(0)'; }}
+    >
       <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
       <div style={{ fontSize: 13, color: '#777' }}>{label}</div>
     </div>
