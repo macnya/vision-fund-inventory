@@ -115,23 +115,87 @@ export default function AssetDetail({ assetCode, onBack }) {
                 <th style={cellStyle}>By</th>
                 <th style={cellStyle}>From</th>
                 <th style={cellStyle}>To</th>
-                <th style={cellStyle}>GPS</th>
+                <th style={cellStyle}>Location (GPS)</th>
               </tr>
             </thead>
             <tbody>
-              {history.map(function (h) {
-                var mapUrl = 'https://www.google.com/maps?q=' + h.latitude + ',' + h.longitude;
+              {history.map((h) => {
+                const hasGPS = h.latitude != null && h.longitude != null;
+
+                const mapUrl = hasGPS
+                ? `https://www.google.com/maps/search/?api=1&query=${h.latitude},${h.longitude}`
+                : "";
+                let badgeColor = "#6b7280";
+
+                if (h.action === "Transfer") badgeColor = "#2563eb";
+                if (h.action === "Check-In") badgeColor = "#16a34a";
+                if (h.action === "Disposed") badgeColor = "#dc2626";
+                if (h.action === "Lost") badgeColor = "#d97706";
+
                 return (
-                  <tr key={h.id} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={cellStyle}>{new Date(h.timestamp).toLocaleString()}</td>
-                    <td style={cellStyle}>{h.action}</td>
-                    <td style={cellStyle}>{h.scanned_by_name || '-'}</td>
-                    <td style={cellStyle}>{h.from_employee_name || h.from_branch || '-'}</td>
-                    <td style={cellStyle}>{h.to_employee_name || h.to_branch || '-'}</td>
+                  <tr key={h.id} style={{ borderBottom: "1px solid #eee" }}>
                     <td style={cellStyle}>
-                      {h.latitude && h.longitude ? (
-                        <a href={mapUrl} target="_blank" rel="noopener noreferrer">View</a>
-                      ) : '-'}
+                      {new Date(h.timestamp).toLocaleString()}
+                    </td>
+
+                    <td style={cellStyle}>
+                      <span
+                        style={{
+                          background: badgeColor,
+                          color: "#fff",
+                          padding: "4px 10px",
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {h.action}
+                      </span>
+                    </td>
+
+                    <td style={cellStyle}>
+                      {h.scanned_by_name || "Unknown"}
+                    </td>
+
+                    <td style={cellStyle}>
+                      {h.from_employee_name || h.from_branch || "-"}
+                    </td>
+
+                    <td style={cellStyle}>
+                      {h.to_employee_name || h.to_branch || "-"}
+                    </td>
+
+                    <td style={cellStyle}>
+                      {hasGPS ? (
+                        <>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: "#666",
+                              marginBottom: 5,
+                            }}
+                          >
+                            {Number(h.latitude).toFixed(6)},
+                            {" "}
+                            {Number(h.longitude).toFixed(6)}
+                          </div>
+
+                          <a
+                            href={mapUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: "#2563eb",
+                              textDecoration: "none",
+                              fontWeight: 600,
+                            }}
+                          >
+                            📍 View on Google Maps
+                          </a>
+                        </>
+                      ) : (
+                        <span style={{ color: "#999" }}>No GPS</span>
+                      )}
                     </td>
                   </tr>
                 );
