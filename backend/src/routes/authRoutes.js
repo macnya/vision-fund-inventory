@@ -5,6 +5,8 @@ const {
   register,
   login,
   getUsers,
+  updateUserRole,
+  deleteUser,
 } = require('../controllers/authController');
 
 const {
@@ -21,6 +23,8 @@ router.post('/login', login);
 router.post('/register', verifyToken, requireAdmin, register);
 
 router.get('/users', verifyToken, requireAdmin, getUsers);
+router.put('/users/:id/role', verifyToken, requireAdmin, updateUserRole);
+router.delete('/users/:id', verifyToken, requireAdmin, deleteUser);
 
 
 module.exports = router;
