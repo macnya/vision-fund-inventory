@@ -33,3 +33,8 @@ export async function markAssetLost({ asset_id, notes }) {
   const res = await api.post('/lost-assets', { asset_id, notes });
   return res.data;
 }
+
+export async function fetchDashboardStats() {
+  const res = await api.get('/dashboard/stats');
+  return res.data;
+}
