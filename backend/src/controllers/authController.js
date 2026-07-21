@@ -69,4 +69,30 @@ async function login(req, res) {
   }
 }
 
-module.exports = { register, login };
+// GET /auth/users
+async function getUsers(req, res) {
+  try {
+    const result = await pool.query(
+      `SELECT
+          id,
+          name,
+          email,
+          role,
+          created_at
+       FROM it_staff
+       ORDER BY created_at DESC`
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: "Failed to fetch users"
+    });
+  }
+}
+  
+
+module.exports = { register, login, getUsers };
