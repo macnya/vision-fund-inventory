@@ -175,9 +175,7 @@ export default function AssetDetail({ assetCode, onBack }) {
                               marginBottom: 5,
                             }}
                           >
-                            {Number(h.latitude).toFixed(6)},
-                            {" "}
-                            {Number(h.longitude).toFixed(6)}
+                            {`${Number(h.latitude).toFixed(6)}, ${Number(h.longitude).toFixed(6)}`}
                           </div>
 
                           <a
