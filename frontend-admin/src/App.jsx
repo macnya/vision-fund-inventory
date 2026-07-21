@@ -5,10 +5,11 @@ import AssetList from './pages/AssetList';
 import AssetDetail from './pages/AssetDetail';
 import CreateEmployee from './pages/CreateEmployee';
 import CreateLocation from './pages/CreateLocation';
+import UserManagement from './pages/UserManagement';
 
 function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState('dashboard'); // 'dashboard' | 'list' | 'detail' | 'newEmployee' | 'newLocation'
+  const [view, setView] = useState('dashboard'); // 'dashboard' | 'list' | 'detail' | 'newEmployee' | 'newLocation' | 'users'
   const [selectedAssetCode, setSelectedAssetCode] = useState(null);
   const [listInitialStatus, setListInitialStatus] = useState('');
 
@@ -51,29 +52,31 @@ function App() {
         onCreated={() => { alert('Location created'); setView('list'); }}
       />
     );
+  } else if (view === 'users') {
+    content = <UserManagement currentUserId={user.id} />;
   } else if (view === 'list') {
-  content = (
-    <div>
-      <div style={{ display: 'flex', gap: 10, padding: '20px 30px 0' }}>
-        <button style={navButtonStyle} onClick={() => setView('newEmployee')}>+ New Employee</button>
-        <button style={navButtonStyle} onClick={() => setView('newLocation')}>+ New Location</button>
+    content = (
+      <div>
+        <div style={{ display: 'flex', gap: 10, padding: '20px 30px 0' }}>
+          <button style={navButtonStyle} onClick={() => setView('newEmployee')}>+ New Employee</button>
+          <button style={navButtonStyle} onClick={() => setView('newLocation')}>+ New Location</button>
+        </div>
+        <AssetList
+          onSelectAsset={(code) => { setSelectedAssetCode(code); setView('detail'); }}
+          initialStatus={listInitialStatus}
+        />
       </div>
-      <AssetList
-        onSelectAsset={(code) => { setSelectedAssetCode(code); setView('detail'); }}
-        initialStatus={listInitialStatus}
+    );
+  } else {
+    content = (
+      <Dashboard
+        onNavigate={(targetView, status) => {
+          setListInitialStatus(status || '');
+          setView(targetView);
+        }}
       />
-    </div>
-  );
-} else {
-  content = (
-    <Dashboard
-      onNavigate={(targetView, status) => {
-        setListInitialStatus(status || '');
-        setView(targetView);
-      }}
-    />
-  );
-}
+    );
+  }
 
   return (
     <div>
@@ -81,6 +84,7 @@ function App() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button style={tabStyle(view === 'dashboard')} onClick={() => setView('dashboard')}>Dashboard</button>
           <button style={tabStyle(view === 'list')} onClick={() => setView('list')}>Assets</button>
+          <button style={tabStyle(view === 'users')} onClick={() => setView('users')}>IT Staff</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 13, color: '#555' }}>{user.name}</span>

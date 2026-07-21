@@ -38,3 +38,18 @@ export async function fetchDashboardStats() {
   const res = await api.get('/dashboard/stats');
   return res.data;
 }
+
+export async function fetchUsers() {
+  const res = await api.get('/auth/users');
+  return res.data;
+}
+
+export async function updateUserRole(id, role) {
+  const res = await api.put(`/auth/users/${id}/role`, { role });
+  return res.data;
+}
+
+export async function deleteUser(id) {
+  const res = await api.delete(`/auth/users/${id}`);
+  return res.data;
+}
