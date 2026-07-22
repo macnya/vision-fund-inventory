@@ -16,9 +16,10 @@ function App() {
   const [listInitialStatus, setListInitialStatus] = useState('');
 
   useEffect(() => {
-    const stored = localStorage.getItem('user');
-    if (stored) setUser(JSON.parse(stored));
-  }, []);
+  const stored = localStorage.getItem('user');
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  if (stored) setUser(JSON.parse(stored));
+}, []);
 
   const handleLoginSuccess = (userData) => setUser(userData);
 

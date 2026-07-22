@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchAssetDetail, fetchAssetHistory, markAssetDisposed, markAssetLost } from '../api';
+import { colors } from '../theme';
 
 export default function AssetDetail({ assetCode, onBack }) {
   const [data, setData] = useState(null);
@@ -67,8 +68,7 @@ export default function AssetDetail({ assetCode, onBack }) {
     <div style={{ padding: 30, maxWidth: 900, margin: '0 auto' }}>
       <button onClick={onBack} style={backButtonStyle}>Back to list</button>
 
-      <h1 style={{ color: '#1e3a5f', marginBottom: 4 }}>{asset.asset_code}</h1>
-      <p style={{ color: '#555', marginTop: 0 }}>{asset.description}</p>
+      <h1 style={{ color: colors.white, marginBottom: 4 }}>{asset.asset_code}</h1>      <p style={{ color: '#555', marginTop: 0 }}>{asset.description}</p>
 
       <div style={sectionStyle}>
         <h3>Details</h3>
@@ -218,5 +218,5 @@ function Row(props) {
 var sectionStyle = { background: '#f9f9f9', borderRadius: 10, padding: 20, marginBottom: 20 };
 var cellStyle = { padding: '8px 10px', fontSize: 13 };
 var backButtonStyle = { marginBottom: 20, padding: '8px 16px', background: '#eee', border: 'none', borderRadius: 6, cursor: 'pointer' };
-var dangerButtonStyle = { padding: '10px 16px', background: '#c0392b', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
-var warningButtonStyle = { padding: '10px 16px', background: '#d68910', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
+var dangerButtonStyle = { padding: '10px 16px', background: colors.danger, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };
+var warningButtonStyle = { padding: '10px 16px', background: colors.warning, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };

@@ -17,15 +17,17 @@ export default function Dashboard({ onNavigate }) {
   if (!stats) return <div style={{ padding: 30 }}>Failed to load dashboard.</div>;
 
   const categoryColors = ['#E8720C', '#2E86AB', '#4C9F70', '#8E44AD', '#C0392B', '#F4C430', '#16A085', '#95A5A6'];
+  
   const totalCategoryCount = stats.categories.reduce((sum, c) => sum + c.count, 0);
-  let cumulativePercent = 0;
-  const pieGradientParts = stats.categories.map((cat, i) => {
+  const pieGradientParts = stats.categories.reduce((acc, cat, i) => {
+    const previousEnd = acc.parts.length > 0 ? acc.cumulative : 0;
     const percent = totalCategoryCount > 0 ? (cat.count / totalCategoryCount) * 100 : 0;
-    const start = cumulativePercent;
-    cumulativePercent += percent;
+    const newCumulative = acc.cumulative + percent;
     const color = categoryColors[i % categoryColors.length];
-    return color + ' ' + start + '% ' + cumulativePercent + '%';
-  });
+    acc.parts.push(color + ' ' + previousEnd + '% ' + newCumulative + '%');
+    acc.cumulative = newCumulative;
+    return acc;
+  }, { parts: [], cumulative: 0 }).parts;
   const pieGradient = 'conic-gradient(' + pieGradientParts.join(', ') + ')';
 
   const maxBranchCount = Math.max(1, ...stats.assetsByBranch.map((b) => b.count));

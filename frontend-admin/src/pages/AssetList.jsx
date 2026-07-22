@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../api';
+import { colors } from '../theme';
 
 export default function AssetList({ onSelectAsset, initialStatus = '' }) {
   const [assets, setAssets] = useState([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState(initialStatus);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    loadAssets();
-  }, [status]);
 
   const loadAssets = async () => {
     setLoading(true);
@@ -26,6 +23,11 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
     }
   };
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadAssets();
+  }, [status]);
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     loadAssets();
@@ -33,17 +35,16 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
 
   return (
     <div style={{ padding: 30, maxWidth: 1100, margin: '0 auto' }}>
-      <h1 style={{ color: '#1e3a5f' }}>Vision Fund Assets</h1>
-
+      <h1 style={{ color: colors.white }}>Vision Fund Assets</h1>
       <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <input
-          style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+          style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid ' + colors.border }}
           placeholder="Search by code or description..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <select
-          style={{ padding: 10, borderRadius: 6, border: '1px solid #ccc' }}
+          style={{ padding: 10, borderRadius: 6, border: '1px solid ' + colors.border }}
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
@@ -54,7 +55,7 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
           <option value="Disposed">Disposed</option>
           <option value="Lost">Lost</option>
         </select>
-        <button type="submit" style={{ padding: '10px 20px', background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 6 }}>
+        <button type="submit" style={{ padding: '10px 20px', background: colors.primary, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' }}>
           Search
         </button>
       </form>
@@ -64,7 +65,7 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ background: '#f4f5f7', textAlign: 'left' }}>
+            <tr style={{ background: colors.gray, textAlign: 'left' }}>
               <th style={cellStyle}>Asset Code</th>
               <th style={cellStyle}>Description</th>
               <th style={cellStyle}>Category</th>

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import api from '../api';
+import { colors } from '../theme';
+import logo from '../assets/logo.png';
 
 export default function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -26,7 +28,10 @@ export default function Login({ onLoginSuccess }) {
   return (
     <div style={styles.container}>
       <form onSubmit={handleSubmit} style={styles.form}>
-        <h1 style={styles.title}>Vision Fund<br />Asset Dashboard</h1>
+  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+    <img src={logo} alt="Vision Fund" style={{ height: 60 }} />
+  </div>
+  <h1 style={styles.title}>Asset Dashboard</h1>
         {error && <p style={styles.error}>{error}</p>}
         <input
           style={styles.input}
@@ -34,7 +39,7 @@ export default function Login({ onLoginSuccess }) {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
+          
         />
         <input
           style={styles.input}
@@ -53,10 +58,10 @@ export default function Login({ onLoginSuccess }) {
 }
 
 const styles = {
-  container: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f4f5f7' },
-  form: { background: '#fff', padding: 40, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.08)', width: 320 },
-  title: { fontSize: 22, textAlign: 'center', marginBottom: 24, color: '#1e3a5f' },
-  input: { display: 'block', width: '100%', padding: 12, marginBottom: 14, borderRadius: 8, border: '1px solid #ccc', boxSizing: 'border-box' },
-  button: { width: '100%', padding: 12, background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, cursor: 'pointer' },
-  error: { color: '#c0392b', fontSize: 13, marginBottom: 10 },
-};
+  container: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: colors.black },
+  form: { background: colors.white, padding: 40, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.3)', width: 320 },
+  title: { fontSize: 22, textAlign: 'center', marginBottom: 24, color: colors.black },
+  input: { display: 'block', width: '100%', padding: 12, marginBottom: 14, borderRadius: 8, border: '1px solid ' + colors.border, boxSizing: 'border-box' },
+  button: { width: '100%', padding: 12, background: colors.primary, color: colors.white, border: 'none', borderRadius: 8, fontSize: 15, cursor: 'pointer', fontWeight: 600 },
+  error: { color: colors.danger, fontSize: 13, marginBottom: 10 },
+};required

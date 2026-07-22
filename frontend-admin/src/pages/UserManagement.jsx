@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import { fetchUsers, updateUserRole, deleteUser } from '../api';
+import { colors } from '../theme';
 
 const ROLES = ['IT Admin', 'IT Officer', 'Branch Manager', 'Auditor'];
 
 export default function UserManagement({ currentUserId }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -22,6 +19,11 @@ export default function UserManagement({ currentUserId }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadUsers();
+  }, []);
 
   const handleRoleChange = async (id, newRole) => {
     try {
@@ -46,11 +48,11 @@ export default function UserManagement({ currentUserId }) {
 
   return (
     <div style={{ padding: 30, maxWidth: 900, margin: '0 auto' }}>
-      <h1 style={{ color: '#1e3a5f' }}>IT Staff Management</h1>
+      <h1 style={{ color: colors.white }}>IT Staff Management</h1>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 20 }}>
         <thead>
-          <tr style={{ textAlign: 'left', background: '#f4f5f7' }}>
+          <tr style={{ textAlign: 'left', background: colors.gray }}>
             <th style={cellStyle}>Name</th>
             <th style={cellStyle}>Email</th>
             <th style={cellStyle}>Role</th>
@@ -94,5 +96,5 @@ export default function UserManagement({ currentUserId }) {
 }
 
 const cellStyle = { padding: '10px 12px', fontSize: 14 };
-const selectStyle = { padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc' };
-const deleteButtonStyle = { padding: '6px 12px', background: '#c0392b', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
+const selectStyle = { padding: '6px 10px', borderRadius: 6, border: '1px solid ' + colors.border };
+const deleteButtonStyle = { padding: '6px 12px', background: colors.danger, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
