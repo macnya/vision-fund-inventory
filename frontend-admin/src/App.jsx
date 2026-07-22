@@ -84,7 +84,9 @@ function App() {
     <div>
       <div style={topNavStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <img src={logo} alt="Vision Fund" style={{ height: 36 }} />
+          <div style={logoBoxStyle}>
+            <img src={logo} alt="Vision Fund" style={{ height: 40, display: 'block' }} />
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button style={tabStyle(view === 'dashboard')} onClick={() => setView('dashboard')}>Dashboard</button>
             <button style={tabStyle(view === 'list')} onClick={() => setView('list')}>Assets</button>
@@ -115,6 +117,7 @@ function tabStyle(active) {
 
 const navButtonStyle = { padding: '8px 16px', background: colors.success, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };
 const topNavStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 30px', borderBottom: '2px solid ' + colors.primary, background: colors.black };
+const logoBoxStyle = { background: colors.white, padding: '6px 12px', borderRadius: 8, display: 'flex', alignItems: 'center' };
 const logoutButtonStyle = { padding: '6px 12px', background: colors.primary, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
 
 export default App;
