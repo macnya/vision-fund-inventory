@@ -28,10 +28,10 @@ export default function Login({ onLoginSuccess }) {
   return (
     <div style={styles.container}>
       <form onSubmit={handleSubmit} style={styles.form}>
-  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-    <img src={logo} alt="Vision Fund" style={{ height: 60 }} />
-  </div>
-  <h1 style={styles.title}>Asset Dashboard</h1>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <img src={logo} alt="Vision Fund" style={{ height: 60 }} />
+        </div>
+        <h1 style={styles.title}>Asset Dashboard</h1>
         {error && <p style={styles.error}>{error}</p>}
         <input
           style={styles.input}
@@ -39,7 +39,7 @@ export default function Login({ onLoginSuccess }) {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          
+          required
         />
         <input
           style={styles.input}
@@ -64,4 +64,4 @@ const styles = {
   input: { display: 'block', width: '100%', padding: 12, marginBottom: 14, borderRadius: 8, border: '1px solid ' + colors.border, boxSizing: 'border-box' },
   button: { width: '100%', padding: 12, background: colors.primary, color: colors.white, border: 'none', borderRadius: 8, fontSize: 15, cursor: 'pointer', fontWeight: 600 },
   error: { color: colors.danger, fontSize: 13, marginBottom: 10 },
-};required
+};

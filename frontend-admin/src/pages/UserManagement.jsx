@@ -21,9 +21,9 @@ export default function UserManagement({ currentUserId }) {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    loadUsers();
-  }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  loadUsers();
+}, []);
 
   const handleRoleChange = async (id, newRole) => {
     try {

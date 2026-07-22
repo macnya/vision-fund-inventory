@@ -24,9 +24,9 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    loadAssets();
-  }, [status]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  loadAssets();
+}, [status]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
