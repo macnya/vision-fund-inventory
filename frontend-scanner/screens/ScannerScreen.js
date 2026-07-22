@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import api from '../api';
 
-export default function ScannerScreen({ onScanSuccess, onLogout }) {
+export default function ScannerScreen({ onScanSuccess, onBack }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -65,8 +65,8 @@ export default function ScannerScreen({ onScanSuccess, onLogout }) {
         {loading && <ActivityIndicator color="#fff" style={{ marginTop: 10 }} />}
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-        <Text style={styles.logoutText}>Log Out</Text>
+      <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <Text style={styles.backButtonText}>← Home</Text>
       </TouchableOpacity>
     </View>
   );
@@ -84,11 +84,11 @@ const styles = StyleSheet.create({
     color: '#fff', backgroundColor: 'rgba(0,0,0,0.6)',
     padding: 10, borderRadius: 8, fontSize: 16,
   },
-  logoutButton: {
+  backButton: {
     position: 'absolute', top: 50, right: 20,
     backgroundColor: 'rgba(0,0,0,0.6)', padding: 10, borderRadius: 8,
   },
-  logoutText: { color: '#fff', fontWeight: '600' },
+  backButtonText: { color: '#fff', fontWeight: '600' },
   button: {
     backgroundColor: '#1e3a5f', borderRadius: 8, padding: 16, alignItems: 'center',
   },

@@ -7,6 +7,7 @@ const {
   getUsers,
   updateUserRole,
   deleteUser,
+  refreshToken,
 } = require('../controllers/authController');
 
 const {
@@ -14,9 +15,14 @@ const {
   requireAdmin,
 } = require('../middleware/authMiddleware');
 
+const { loginLimiter } = require('../middleware/rateLimiter');
+
 
 // Public route
-router.post('/login', login);
+router.post('/login', loginLimiter, login);
+
+// Any authenticated user can refresh their own token before it expires
+router.post('/refresh', verifyToken, refreshToken);
 
 
 // Admin protected routes

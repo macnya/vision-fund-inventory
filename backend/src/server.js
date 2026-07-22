@@ -16,6 +16,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('Vision Fund Inventory API running'));
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok', time: new Date().toISOString() }));
 
 app.use('/auth', authRoutes);
 app.use('/assets', assetRoutes);

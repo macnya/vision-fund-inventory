@@ -153,4 +153,29 @@ async function deleteUser(req, res) {
   }
 }
 
-module.exports = { register, login, getUsers, updateUserRole, deleteUser };
+// POST /auth/refresh — issue a fresh 8h token, as long as the current one hasn't expired yet.
+// req.user is populated by verifyToken, which already rejects expired/invalid tokens before this runs.
+async function refreshToken(req, res) {
+  try {
+    // Re-check the user still exists and hasn't been deleted/disabled since the original token was issued
+    const result = await pool.query('SELECT id, name, email, role FROM it_staff WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(401).json({ error: 'Account no longer exists' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    res.json({ token, user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error during token refresh' });
+  }
+}
+
+module.exports = { register, login, getUsers, updateUserRole, deleteUser, refreshToken };
