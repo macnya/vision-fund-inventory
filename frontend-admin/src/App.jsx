@@ -9,6 +9,7 @@ import UserManagement from './pages/UserManagement';
 import logo from './assets/logo.png';
 import { colors } from './theme';
 import CreateUser from './pages/CreateUser';
+import CreateAsset from './pages/CreateAsset';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -70,19 +71,31 @@ function App() {
       onCreated={() => { alert('IT staff account created'); setView('users'); }}
     />
   );
-  } else if (view === 'list') {
-    content = (
-      <div>
-        <div style={{ display: 'flex', gap: 10, padding: '20px 30px 0' }}>
-          <button style={navButtonStyle} onClick={() => setView('newEmployee')}>+ New Employee</button>
-          <button style={navButtonStyle} onClick={() => setView('newLocation')}>+ New Location</button>
-        </div>
-        <AssetList
-          onSelectAsset={(code) => { setSelectedAssetCode(code); setView('detail'); }}
-          initialStatus={listInitialStatus}
-        />
+  } else if (view === 'newAsset') {
+  content = (
+    <CreateAsset
+      onBack={() => setView('list')}
+      onCreated={(code) => {
+        alert('Asset created! You can now find it in the asset list and print its barcode.');
+        setSelectedAssetCode(code);
+        setView('detail');
+      }}
+    />
+  );
+} else if (view === 'list') {
+  content = (
+    <div>
+      <div style={{ display: 'flex', gap: 10, padding: '20px 30px 0' }}>
+        <button style={navButtonStyle} onClick={() => setView('newAsset')}>+ New Asset</button>
+        <button style={navButtonStyle} onClick={() => setView('newEmployee')}>+ New Employee</button>
+        <button style={navButtonStyle} onClick={() => setView('newLocation')}>+ New Location</button>
       </div>
-    );
+      <AssetList
+        onSelectAsset={(code) => { setSelectedAssetCode(code); setView('detail'); }}
+        initialStatus={listInitialStatus}
+      />
+    </div>
+  );
   } else {
     content = (
       <Dashboard

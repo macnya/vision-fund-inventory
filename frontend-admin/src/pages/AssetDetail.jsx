@@ -58,6 +58,23 @@ export default function AssetDetail({ assetCode, onBack }) {
     }
   };
 
+  const handlePrintBarcode = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        'https://vision-fund-inventory.onrender.com/assets/' + encodeURIComponent(data.asset.asset_code) + '/barcode',
+        { headers: { Authorization: 'Bearer ' + token } }
+      );
+      if (!response.ok) throw new Error('Failed to fetch barcode');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load barcode image.');
+    }
+  };
+
   if (loading) return <div style={{ padding: 30 }}>Loading...</div>;
   if (!data) return <div style={{ padding: 30 }}>Asset not found.</div>;
 
@@ -68,7 +85,9 @@ export default function AssetDetail({ assetCode, onBack }) {
     <div style={{ padding: 30, maxWidth: 900, margin: '0 auto' }}>
       <button onClick={onBack} style={backButtonStyle}>Back to list</button>
 
-      <h1 style={{ color: colors.white, marginBottom: 4 }}>{asset.asset_code}</h1>      <p style={{ color: '#555', marginTop: 0 }}>{asset.description}</p>
+      <h1 style={{ color: colors.white, marginBottom: 4 }}>{asset.asset_code}</h1>
+      <button onClick={handlePrintBarcode} style={barcodeLinkStyle}>View / Print Barcode</button>
+      <p style={{ color: '#555', marginTop: 8 }}>{asset.description}</p>
 
       <div style={sectionStyle}>
         <h3>Details</h3>
@@ -123,8 +142,8 @@ export default function AssetDetail({ assetCode, onBack }) {
                 const hasGPS = h.latitude != null && h.longitude != null;
 
                 const mapUrl = hasGPS
-                ? `https://www.google.com/maps/search/?api=1&query=${h.latitude},${h.longitude}`
-                : "";
+                  ? `https://www.google.com/maps/search/?api=1&query=${h.latitude},${h.longitude}`
+                  : "";
                 let badgeColor = "#6b7280";
 
                 if (h.action === "Transfer") badgeColor = "#2563eb";
@@ -178,18 +197,7 @@ export default function AssetDetail({ assetCode, onBack }) {
                             {`${Number(h.latitude).toFixed(6)}, ${Number(h.longitude).toFixed(6)}`}
                           </div>
 
-                          <a
-                            href={mapUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              color: "#2563eb",
-                              textDecoration: "none",
-                              fontWeight: 600,
-                            }}
-                          >
-                            📍 View on Google Maps
-                          </a>
+                          <a href={mapUrl} target="_blank" rel="noopener noreferrer" style={mapLinkStyle}>View on Google Maps</a>
                         </>
                       ) : (
                         <span style={{ color: "#999" }}>No GPS</span>
@@ -220,3 +228,5 @@ var cellStyle = { padding: '8px 10px', fontSize: 13 };
 var backButtonStyle = { marginBottom: 20, padding: '8px 16px', background: '#eee', border: 'none', borderRadius: 6, cursor: 'pointer' };
 var dangerButtonStyle = { padding: '10px 16px', background: colors.danger, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };
 var warningButtonStyle = { padding: '10px 16px', background: colors.warning, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };
+var barcodeLinkStyle = { background: 'none', border: 'none', color: colors.primary, cursor: 'pointer', fontSize: 13, padding: 0, marginTop: 4 };
+var mapLinkStyle = { color: "#2563eb", textDecoration: "none", fontWeight: 600 };

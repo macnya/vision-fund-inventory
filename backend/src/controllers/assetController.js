@@ -45,6 +45,17 @@ async function getAllAssets(req, res) {
   }
 }
 
+// GET /assets/categories — list all asset categories (for dropdowns)
+async function getAllCategories(req, res) {
+  try {
+    const result = await pool.query('SELECT id, name FROM asset_category ORDER BY name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+}
+
 // GET /assets/:asset_code — lookup a single asset by its QR/barcode value (used by the scanner)
 async function getAssetByCode(req, res) {
   const { asset_code } = req.params;
@@ -119,4 +130,4 @@ async function createAsset(req, res) {
   }
 }
 
-module.exports = { getAllAssets, getAssetByCode, createAsset };
+module.exports = { getAllAssets, getAssetByCode, createAsset, getAllCategories };

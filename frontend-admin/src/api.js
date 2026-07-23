@@ -58,3 +58,13 @@ export async function createUser({ name, email, password, role }) {
   const res = await api.post('/auth/register', { name, email, password, role });
   return res.data;
 }
+
+export async function fetchCategories() {
+  const res = await api.get('/assets/categories');
+  return res.data;
+}
+
+export async function createAsset(payload) {
+  const res = await api.post('/assets', payload);
+  return res.data;
+}

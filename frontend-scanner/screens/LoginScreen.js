@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api';
 
@@ -34,6 +34,7 @@ export default function LoginScreen({ onLoginSuccess }) {
 
   return (
     <View style={styles.container}>
+      <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
       <Text style={styles.title}>Vision Fund{'\n'}Asset Scanner</Text>
 
       <TextInput
@@ -61,6 +62,7 @@ export default function LoginScreen({ onLoginSuccess }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 24 },
+  logo: { width: 220, height: 57, alignSelf: 'center', marginBottom: 24 },
   title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 40 },
   input: {
     borderWidth: 1, borderColor: '#ccc', borderRadius: 8,

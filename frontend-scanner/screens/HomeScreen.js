@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Image } from 'react-native';
 import api from '../api';
 
 export default function HomeScreen({ userName, onScan, onSearchResult, onViewActivity, onLogout }) {
@@ -28,6 +28,7 @@ export default function HomeScreen({ userName, onScan, onSearchResult, onViewAct
 
   return (
     <View style={styles.container}>
+      <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
       <Text style={styles.greeting}>Hello, {userName}</Text>
       <Text style={styles.subtitle}>Vision Fund Asset Scanner</Text>
 
@@ -78,6 +79,7 @@ export default function HomeScreen({ userName, onScan, onSearchResult, onViewAct
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, justifyContent: 'center', backgroundColor: '#fff' },
+  logo: { width: 180, height: 47, alignSelf: 'center', marginBottom: 20 },
   greeting: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', color: '#1a1a1a' },
   subtitle: { fontSize: 14, color: '#777', textAlign: 'center', marginBottom: 40 },
   primaryButton: { backgroundColor: '#E8720C', borderRadius: 10, padding: 18, alignItems: 'center', marginBottom: 14 },
