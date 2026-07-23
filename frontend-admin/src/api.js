@@ -53,3 +53,8 @@ export async function deleteUser(id) {
   const res = await api.delete(`/auth/users/${id}`);
   return res.data;
 }
+
+export async function createUser({ name, email, password, role }) {
+  const res = await api.post('/auth/register', { name, email, password, role });
+  return res.data;
+}

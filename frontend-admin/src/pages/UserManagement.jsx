@@ -4,8 +4,7 @@ import { colors } from '../theme';
 
 const ROLES = ['IT Admin', 'IT Officer', 'Branch Manager', 'Auditor'];
 
-export default function UserManagement({ currentUserId }) {
-  const [users, setUsers] = useState([]);
+export default function UserManagement({ currentUserId, onCreateNew }) {  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const loadUsers = async () => {
@@ -47,8 +46,11 @@ export default function UserManagement({ currentUserId }) {
   if (loading) return <div style={{ padding: 30 }}>Loading users...</div>;
 
   return (
-    <div style={{ padding: 30, maxWidth: 900, margin: '0 auto' }}>
+  <div style={{ padding: 30, maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <h1 style={{ color: colors.white }}>IT Staff Management</h1>
+      <button onClick={onCreateNew} style={newButtonStyle}>+ New Staff</button>
+    </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 20 }}>
         <thead>
@@ -98,3 +100,4 @@ export default function UserManagement({ currentUserId }) {
 const cellStyle = { padding: '10px 12px', fontSize: 14 };
 const selectStyle = { padding: '6px 10px', borderRadius: 6, border: '1px solid ' + colors.border };
 const deleteButtonStyle = { padding: '6px 12px', background: colors.danger, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
+const newButtonStyle = { padding: '10px 16px', background: colors.success, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };

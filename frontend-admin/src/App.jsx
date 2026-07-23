@@ -8,6 +8,7 @@ import CreateLocation from './pages/CreateLocation';
 import UserManagement from './pages/UserManagement';
 import logo from './assets/logo.png';
 import { colors } from './theme';
+import CreateUser from './pages/CreateUser';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -56,7 +57,19 @@ function App() {
       />
     );
   } else if (view === 'users') {
-    content = <UserManagement currentUserId={user.id} />;
+  content = (
+    <UserManagement
+      currentUserId={user.id}
+      onCreateNew={() => setView('newUser')}
+    />
+  );
+} else if (view === 'newUser') {
+  content = (
+    <CreateUser
+      onBack={() => setView('users')}
+      onCreated={() => { alert('IT staff account created'); setView('users'); }}
+    />
+  );
   } else if (view === 'list') {
     content = (
       <div>
