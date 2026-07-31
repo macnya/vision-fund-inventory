@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import api from '../api';
 
-export default function ScannerScreen({ onScanSuccess, onBack }) {
+export default function ScannerScreen({ onScanSuccess, onNotFound, onBack }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -22,9 +22,14 @@ export default function ScannerScreen({ onScanSuccess, onBack }) {
       onScanSuccess(response.data);
     } catch (err) {
       if (err.response?.status === 404) {
-        Alert.alert('Not found', `No asset found with code "${data}"`, [
-          { text: 'OK', onPress: () => setScanned(false) },
-        ]);
+        Alert.alert(
+          'Not found',
+          `No asset found with code "${data}". Would you like to add it as a new asset?`,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => setScanned(false) },
+            { text: 'Add New Asset', onPress: () => onNotFound(data) },
+          ]
+        );
       } else {
         Alert.alert('Error', 'Could not look up asset. Check your connection.', [
           { text: 'OK', onPress: () => setScanned(false) },
@@ -60,7 +65,7 @@ export default function ScannerScreen({ onScanSuccess, onBack }) {
 
       <View style={styles.overlay}>
         <Text style={styles.instruction}>
-          {loading ? 'Looking up asset...' : 'Point camera at an asset QR code'}
+          {loading ? 'Looking up asset...' : 'Point camera at an asset barcode'}
         </Text>
         {loading && <ActivityIndicator color="#fff" style={{ marginTop: 10 }} />}
       </View>

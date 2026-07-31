@@ -6,10 +6,12 @@ import HomeScreen from './screens/HomeScreen';
 import ScannerScreen from './screens/ScannerScreen';
 import AssetDetailScreen from './screens/AssetDetailScreen';
 import RecentActivityScreen from './screens/RecentActivityScreen';
+import CreateAssetScreen from './screens/CreateAssetScreen';
 
 export default function App() {
-  const [screen, setScreen] = useState('login'); // 'login' | 'home' | 'scanner' | 'assetDetail' | 'activity'
+  const [screen, setScreen] = useState('login'); // 'login' | 'home' | 'scanner' | 'assetDetail' | 'activity' | 'createAsset'
   const [assetData, setAssetData] = useState(null);
+  const [scannedCode, setScannedCode] = useState('');
   const [userName, setUserName] = useState('');
 
   const handleLoginSuccess = async () => {
@@ -26,6 +28,16 @@ export default function App() {
     setScreen('assetDetail');
   };
 
+  const handleNotFound = (code) => {
+    setScannedCode(code);
+    setScreen('createAsset');
+  };
+
+  const handleAssetCreated = (asset) => {
+    setAssetData({ asset, current_assignment: null });
+    setScreen('assetDetail');
+  };
+
   const handleSearchResult = (data) => {
     setAssetData(data);
     setScreen('assetDetail');
@@ -33,6 +45,7 @@ export default function App() {
 
   const handleBackToHome = () => {
     setAssetData(null);
+    setScannedCode('');
     setScreen('home');
   };
 
@@ -55,7 +68,18 @@ export default function App() {
         />
       )}
       {screen === 'scanner' && (
-        <ScannerScreen onScanSuccess={handleScanSuccess} onBack={() => setScreen('home')} />
+        <ScannerScreen
+          onScanSuccess={handleScanSuccess}
+          onNotFound={handleNotFound}
+          onBack={() => setScreen('home')}
+        />
+      )}
+      {screen === 'createAsset' && (
+        <CreateAssetScreen
+          scannedCode={scannedCode}
+          onCreated={handleAssetCreated}
+          onCancel={handleBackToHome}
+        />
       )}
       {screen === 'assetDetail' && (
         <AssetDetailScreen assetData={assetData} onBack={handleBackToHome} />
