@@ -10,10 +10,12 @@ import logo from './assets/logo.png';
 import { colors } from './theme';
 import CreateUser from './pages/CreateUser';
 import CreateAsset from './pages/CreateAsset';
+import VerificationReport from './pages/VerificationReport';
+import AssetLocations from './pages/AssetLocation';
 
 function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState('dashboard'); // 'dashboard' | 'list' | 'detail' | 'newEmployee' | 'newLocation' | 'users'
+  const [view, setView] = useState('dashboard'); // 'dashboard' | 'list' | 'detail' | 'newEmployee' | 'newLocation' | 'users' | 'verifications' | 'locations'
   const [selectedAssetCode, setSelectedAssetCode] = useState(null);
   const [listInitialStatus, setListInitialStatus] = useState('');
 
@@ -82,6 +84,14 @@ function App() {
       }}
     />
   );
+  } else if (view === 'verifications') {
+  content = <VerificationReport />;
+  } else if (view === 'locations') {
+  content = (
+    <AssetLocations
+      onSelectAsset={(code) => { setSelectedAssetCode(code); setView('detail'); }}
+    />
+  );
 } else if (view === 'list') {
   content = (
     <div>
@@ -117,7 +127,9 @@ function App() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button style={tabStyle(view === 'dashboard')} onClick={() => setView('dashboard')}>Dashboard</button>
             <button style={tabStyle(view === 'list')} onClick={() => setView('list')}>Assets</button>
+            <button style={tabStyle(view === 'locations')} onClick={() => setView('locations')}>Locations</button>
             <button style={tabStyle(view === 'users')} onClick={() => setView('users')}>IT Staff</button>
+            <button style={tabStyle(view === 'verifications')} onClick={() => setView('verifications')}>Verifications</button>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
