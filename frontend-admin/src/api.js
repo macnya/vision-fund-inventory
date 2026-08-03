@@ -39,6 +39,24 @@ export async function fetchDashboardStats() {
   return res.data;
 }
 
+export async function fetchAssetLocations() {
+  const res = await api.get('/dashboard/asset-locations');
+  return res.data;
+}
+
+// Downloads the PDF summary report and triggers a save-as in the browser.
+export async function downloadSummaryReportPdf() {
+  const res = await api.get('/dashboard/report/pdf', { responseType: 'blob' });
+  const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'vision-fund-asset-summary.pdf';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export async function fetchUsers() {
   const res = await api.get('/auth/users');
   return res.data;

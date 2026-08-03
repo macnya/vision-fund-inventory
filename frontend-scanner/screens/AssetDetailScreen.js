@@ -1,41 +1,76 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { checkInAssignment } from '../api';
+import { checkInOffline } from '../offline/offlineApi';
 import AssignModal from './AssignModal';
+import VerifyModal from './VerifyModal';
 import * as Location from 'expo-location';
 
 export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
-  const { asset, current_assignment } = assetData;
+  const { asset, current_assignment, pendingSync } = assetData;
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
 
-  const handleCheckIn = async () => {
-  if (!current_assignment) return;
-  setCheckingIn(true);
-  try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    let latitude = null, longitude = null;
-    if (status === 'granted') {
-      const loc = await Location.getCurrentPositionAsync({});
-      latitude = loc.coords.latitude;
-      longitude = loc.coords.longitude;
+  const performCheckIn = async () => {
+    setCheckingIn(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      let latitude = null, longitude = null;
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({});
+        latitude = loc.coords.latitude;
+        longitude = loc.coords.longitude;
+      }
+      const result = await checkInOffline(asset.asset_code, current_assignment.id, { latitude, longitude });
+      const message = result.queued
+        ? "Saved offline — will sync automatically once you're back online."
+        : 'This asset has been returned to storage.';
+      Alert.alert(result.queued ? 'Saved offline' : 'Returned to Storage', message, [{ text: 'OK', onPress: onBack }]);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to return this asset to storage.');
+    } finally {
+      setCheckingIn(false);
     }
-    await checkInAssignment(current_assignment.id, { latitude, longitude });
-    Alert.alert('Success', 'Asset checked in.', [{ text: 'OK', onPress: onBack }]);
-  } catch (err) {
-    Alert.alert('Error', err.response?.data?.error || 'Failed to check in asset.');
-  } finally {
-    setCheckingIn(false);
-  }
-};
+  };
 
-  const handleAssigned = () => {
+  const handleCheckIn = () => {
+    if (!current_assignment) return;
+    const from = current_assignment.employee_name || current_assignment.physical_location || current_assignment.branch || 'its current holder';
+    const where = [current_assignment.branch, current_assignment.physical_location].filter(Boolean).join(' — ');
+    Alert.alert(
+      'Return to Storage?',
+      `This will return ${asset.asset_code} to storage and clear its current assignment.\n\nCurrently with: ${from}${where ? `\nLocation: ${where}` : ''}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Return to Storage', style: 'default', onPress: performCheckIn },
+      ]
+    );
+  };
+
+  const handleAssigned = (result) => {
     setShowAssignModal(false);
-    Alert.alert('Success', 'Asset assigned.', [{ text: 'OK', onPress: onBack }]);
+    const message = result?.queued
+      ? "Saved offline — will sync automatically once you're back online."
+      : 'Asset assigned.';
+    Alert.alert(result?.queued ? 'Saved offline' : 'Success', message, [{ text: 'OK', onPress: onBack }]);
+  };
+
+  const handleVerified = (result) => {
+    setShowVerifyModal(false);
+    const message = result?.queued
+      ? "Saved offline — will sync automatically once you're back online."
+      : 'Asset verification recorded.';
+    Alert.alert(result?.queued ? 'Saved offline' : 'Success', message, [{ text: 'OK', onPress: onRefresh }]);
   };
 
   return (
     <ScrollView style={styles.container}>
+      {pendingSync && (
+        <View style={styles.pendingBanner}>
+          <Text style={styles.pendingBannerText}>Showing offline data — some changes not yet synced</Text>
+        </View>
+      )}
+
       <Text style={styles.code}>{asset.asset_code}</Text>
       <Text style={styles.description}>{asset.description}</Text>
 
@@ -60,9 +95,13 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
         )}
       </View>
 
+      <TouchableOpacity style={styles.verifyButton} onPress={() => setShowVerifyModal(true)}>
+        <Text style={styles.actionButtonText}>Verify Asset</Text>
+      </TouchableOpacity>
+
       {current_assignment ? (
         <TouchableOpacity style={styles.actionButton} onPress={handleCheckIn} disabled={checkingIn}>
-          {checkingIn ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionButtonText}>Check In</Text>}
+          {checkingIn ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionButtonText}>📦  Return to Storage</Text>}
         </TouchableOpacity>
       ) : (
         <TouchableOpacity style={styles.actionButton} onPress={() => setShowAssignModal(true)}>
@@ -76,9 +115,17 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
 
       <AssignModal
         visible={showAssignModal}
+        assetCode={asset.asset_code}
         assetId={asset.id}
         onClose={() => setShowAssignModal(false)}
         onAssigned={handleAssigned}
+      />
+
+      <VerifyModal
+        visible={showVerifyModal}
+        assetCode={asset.asset_code}
+        onClose={() => setShowVerifyModal(false)}
+        onVerified={handleVerified}
       />
     </ScrollView>
   );
@@ -95,6 +142,10 @@ function Row({ label, value }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
+  pendingBanner: {
+    backgroundColor: '#c98a1d', borderRadius: 8, padding: 10, marginBottom: 14,
+  },
+  pendingBannerText: { color: '#fff', fontSize: 12, fontWeight: '600', textAlign: 'center' },
   code: { fontSize: 22, fontWeight: 'bold', marginTop: 10 },
   description: { fontSize: 16, color: '#555', marginBottom: 20 },
   section: {
@@ -108,6 +159,9 @@ const styles = StyleSheet.create({
   label: { color: '#777' },
   value: { fontWeight: '500' },
   noAssignment: { color: '#999', fontStyle: 'italic' },
+  verifyButton: {
+    backgroundColor: '#b8590c', borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4, marginBottom: 12,
+  },
   actionButton: {
     backgroundColor: '#2d7a4f', borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4,
   },

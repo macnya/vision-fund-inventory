@@ -3,10 +3,10 @@ import {
   Modal, View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
-import { fetchEmployees, fetchLocations, assignAsset } from '../api';
+import { fetchEmployeesOffline, fetchLocationsOffline, assignAssetOffline } from '../offline/offlineApi';
 import * as Location from 'expo-location';
 
-export default function AssignModal({ visible, assetId, onClose, onAssigned }) {
+export default function AssignModal({ visible, assetId, assetCode, onClose, onAssigned }) {
   const [employees, setEmployees] = useState([]);
   const [locations, setLocations] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -21,24 +21,27 @@ export default function AssignModal({ visible, assetId, onClose, onAssigned }) {
   }, [visible]);
 
   async function getCurrentCoords() {
-  try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return { latitude: null, longitude: null };
-    const loc = await Location.getCurrentPositionAsync({});
-    return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-  } catch {
-    return { latitude: null, longitude: null };
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return { latitude: null, longitude: null };
+      const loc = await Location.getCurrentPositionAsync({});
+      return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+    } catch {
+      return { latitude: null, longitude: null };
+    }
   }
-}
 
   const loadData = async () => {
     setLoading(true);
     setSelectedEmployee(null);
     setSelectedLocation(null);
     try {
-      const [emps, locs] = await Promise.all([fetchEmployees(), fetchLocations()]);
+      const [emps, locs] = await Promise.all([fetchEmployeesOffline(), fetchLocationsOffline()]);
       setEmployees(emps);
       setLocations(locs);
+      if (emps.length === 0 && locs.length === 0) {
+        Alert.alert('No offline data', 'Employees and locations haven\'t been loaded on this device yet. Connect once online to enable this offline.');
+      }
     } catch (err) {
       Alert.alert('Error', 'Failed to load employees/locations.');
     } finally {
@@ -47,28 +50,28 @@ export default function AssignModal({ visible, assetId, onClose, onAssigned }) {
   };
 
   const handleConfirm = async () => {
-  if (!selectedEmployee && !selectedLocation) {
-    Alert.alert('Select something', 'Choose an employee and/or a location.');
-    return;
-  }
+    if (!selectedEmployee && !selectedLocation) {
+      Alert.alert('Select something', 'Choose an employee and/or a location.');
+      return;
+    }
 
-  setSubmitting(true);
-  try {
-    const coords = await getCurrentCoords();
-    await assignAsset({
-      asset_id: assetId,
-      employee_id: selectedEmployee,
-      location_id: selectedLocation,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-    });
-    onAssigned();
-  } catch (err) {
-    Alert.alert('Error', err.response?.data?.error || 'Failed to assign asset.');
-  } finally {
-    setSubmitting(false);
-  }
-};
+    setSubmitting(true);
+    try {
+      const coords = await getCurrentCoords();
+      const result = await assignAssetOffline(assetCode, {
+        asset_id: assetId,
+        employee_id: selectedEmployee,
+        location_id: selectedLocation,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      });
+      onAssigned(result);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to assign asset.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>

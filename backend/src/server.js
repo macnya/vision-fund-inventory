@@ -10,10 +10,11 @@ const locationRoutes = require('./routes/locationRoutes');
 const disposalRoutes = require('./routes/disposalRoutes');
 const lostAssetRoutes = require('./routes/lostAssetRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const verificationRoutes = require('./routes/verificationRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(cors());
+app.use(cors({ origin: 'https://vision-fund-admin.onrender.com' }));
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('Vision Fund Inventory API running'));
@@ -27,6 +28,7 @@ app.use('/locations', locationRoutes);
 app.use('/disposals', disposalRoutes);
 app.use('/lost-assets', lostAssetRoutes);
 app.use('/dashboard', dashboardRoutes);
+app.use('/', verificationRoutes);
 
 // 404 for unknown routes
 app.use((req, res) => {

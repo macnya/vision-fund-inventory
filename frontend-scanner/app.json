@@ -12,7 +12,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow Vision Fund Scanner to use your location to log where assets are scanned."
         }
-      ]
+      ],
+      "expo-sqlite"
     ]
   }
 }

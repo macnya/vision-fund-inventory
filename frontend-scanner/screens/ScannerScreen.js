@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import api from '../api';
+import { getAssetByCodeOffline } from '../offline/offlineApi';
 
 export default function ScannerScreen({ onScanSuccess, onNotFound, onBack }) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -18,8 +18,11 @@ export default function ScannerScreen({ onScanSuccess, onNotFound, onBack }) {
     console.log('Scanned raw data:', JSON.stringify(data));
 
     try {
-      const response = await api.get(`/assets/${encodeURIComponent(data)}`);
-      onScanSuccess(response.data);
+      const { data: assetData, fromCache } = await getAssetByCodeOffline(data);
+      if (fromCache) {
+        Alert.alert('Offline', 'Showing last saved data for this asset.', [{ text: 'OK' }]);
+      }
+      onScanSuccess(assetData);
     } catch (err) {
       if (err.response?.status === 404) {
         Alert.alert(
@@ -31,7 +34,7 @@ export default function ScannerScreen({ onScanSuccess, onNotFound, onBack }) {
           ]
         );
       } else {
-        Alert.alert('Error', 'Could not look up asset. Check your connection.', [
+        Alert.alert('Error', "This asset has never been loaded on this device, so it can't be shown offline.", [
           { text: 'OK', onPress: () => setScanned(false) },
         ]);
       }

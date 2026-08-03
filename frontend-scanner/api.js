@@ -47,3 +47,13 @@ export async function createAsset(payload) {
   const res = await api.post('/assets', payload);
   return res.data;
 }
+
+export async function verifyAsset(assetCode, { condition, remarks, latitude, longitude }) {
+  const res = await api.post(`/assets/${assetCode}/verify`, { condition, remarks, latitude, longitude });
+  return res.data;
+}
+
+export async function fetchVerificationReport(filters = {}) {
+  const res = await api.get('/verifications', { params: filters });
+  return res.data;
+}

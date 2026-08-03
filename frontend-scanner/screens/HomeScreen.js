@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Image } from 'react-native';
-import api from '../api';
+import { getAssetByCodeOffline } from '../offline/offlineApi';
 
 export default function HomeScreen({ userName, onScan, onSearchResult, onViewActivity, onLogout }) {
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -11,15 +11,18 @@ export default function HomeScreen({ userName, onScan, onSearchResult, onViewAct
     if (!searchCode.trim()) return;
     setSearching(true);
     try {
-      const response = await api.get(`/assets/${encodeURIComponent(searchCode.trim())}`);
+      const { data, fromCache } = await getAssetByCodeOffline(searchCode.trim());
       setShowSearchModal(false);
       setSearchCode('');
-      onSearchResult(response.data);
+      if (fromCache) {
+        Alert.alert('Offline', 'Showing last saved data for this asset.', [{ text: 'OK' }]);
+      }
+      onSearchResult(data);
     } catch (err) {
       if (err.response?.status === 404) {
         Alert.alert('Not found', `No asset found with code "${searchCode}"`);
       } else {
-        Alert.alert('Error', 'Could not look up asset. Check your connection.');
+        Alert.alert('Error', "This asset has never been loaded on this device, so it can't be shown offline.");
       }
     } finally {
       setSearching(false);

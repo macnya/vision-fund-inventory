@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './screens/LoginScreen';
@@ -7,12 +7,27 @@ import ScannerScreen from './screens/ScannerScreen';
 import AssetDetailScreen from './screens/AssetDetailScreen';
 import RecentActivityScreen from './screens/RecentActivityScreen';
 import CreateAssetScreen from './screens/CreateAssetScreen';
+import OfflineBanner from './components/OfflineBanner';
+import { startAutoSync } from './offline/syncManager';
+import { getAssetByCodeOffline } from './offline/offlineApi';
 
 export default function App() {
   const [screen, setScreen] = useState('login'); // 'login' | 'home' | 'scanner' | 'assetDetail' | 'activity' | 'createAsset'
   const [assetData, setAssetData] = useState(null);
   const [scannedCode, setScannedCode] = useState('');
   const [userName, setUserName] = useState('');
+
+  useEffect(() => {
+    console.log('App mounted, starting auto sync...');
+    let unsubscribe;
+    try {
+      unsubscribe = startAutoSync();
+      console.log('startAutoSync() succeeded');
+    } catch (e) {
+      console.log('startAutoSync() THREW:', e);
+    }
+    return () => unsubscribe && unsubscribe();
+  }, []);
 
   const handleLoginSuccess = async () => {
     const userJson = await AsyncStorage.getItem('user');
@@ -49,7 +64,19 @@ export default function App() {
     setScreen('home');
   };
 
+  const handleRefreshAsset = async () => {
+    if (!assetData?.asset?.asset_code) return;
+    try {
+      const { data } = await getAssetByCodeOffline(assetData.asset.asset_code);
+      setAssetData(data);
+    } catch {
+      // If the refresh itself fails (e.g. offline with nothing cached), just
+      // keep showing what we already have rather than clearing the screen.
+    }
+  };
+
   const handleLogout = async () => {
+    console.log('Logout tapped');
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
     setScreen('login');
@@ -57,13 +84,14 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <OfflineBanner />
       {screen === 'login' && <LoginScreen onLoginSuccess={handleLoginSuccess} />}
       {screen === 'home' && (
         <HomeScreen
           userName={userName}
-          onScan={() => setScreen('scanner')}
+          onScan={() => { console.log('Scan tapped'); setScreen('scanner'); }}
           onSearchResult={handleSearchResult}
-          onViewActivity={() => setScreen('activity')}
+          onViewActivity={() => { console.log('Activity tapped'); setScreen('activity'); }}
           onLogout={handleLogout}
         />
       )}
@@ -82,7 +110,7 @@ export default function App() {
         />
       )}
       {screen === 'assetDetail' && (
-        <AssetDetailScreen assetData={assetData} onBack={handleBackToHome} />
+        <AssetDetailScreen assetData={assetData} onBack={handleBackToHome} onRefresh={handleRefreshAsset} />
       )}
       {screen === 'activity' && (
         <RecentActivityScreen onBack={handleBackToHome} />

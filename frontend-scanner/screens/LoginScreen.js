@@ -14,17 +14,12 @@ export default function LoginScreen({ onLoginSuccess }) {
       return;
     }
 
-    console.log('Attempting login with:', email, 'to', api.defaults.baseURL);
-
     setLoading(true);
     try {
       const response = await api.post('/auth/login', { email, password });
-      console.log('Login success:', response.data);
       await AsyncStorage.setItem('token', response.data.token);
       onLoginSuccess();
     } catch (err) {
-      console.log('Login error message:', err.message);
-      console.log('Login error response:', JSON.stringify(err.response?.data));
       const message = err.response?.data?.error || 'Login failed. Check your connection.';
       Alert.alert('Login failed', message);
     } finally {
