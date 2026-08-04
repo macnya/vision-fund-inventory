@@ -14,7 +14,12 @@ const verificationRoutes = require('./routes/verificationRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(cors({ origin: 'https://vision-fund-admin.onrender.com' }));
+app.use(cors({
+  origin: [
+    'https://vision-fund-inventory-site.onrender.com',
+    'http://localhost:5173',
+  ],
+}));
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('Vision Fund Inventory API running'));
