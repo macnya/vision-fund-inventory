@@ -86,3 +86,18 @@ export async function createAsset(payload) {
   const res = await api.post('/assets', payload);
   return res.data;
 }
+
+export async function fetchLocationsList() {
+  const res = await api.get('/locations');
+  return res.data;
+}
+
+export async function fetchEmployeesList() {
+  const res = await api.get('/employees');
+  return res.data;
+}
+
+export async function createAssignment({ asset_id, employee_id, location_id, latitude, longitude }) {
+  const res = await api.post('/assignments', { asset_id, employee_id, location_id, latitude, longitude });
+  return res.data;
+}
