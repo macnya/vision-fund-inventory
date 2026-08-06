@@ -12,7 +12,7 @@ async function register(req, res) {
   }
 
   try {
-    const existing = await pool.query('SELECT id FROM it_staff WHERE email = $1', [email]);
+    const existing = await pool.query('SELECT id FROM it_staff WHERE LOWER(email) = LOWER($1)', [email]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Email already registered' });
     }
@@ -23,7 +23,7 @@ async function register(req, res) {
       `INSERT INTO it_staff (name, email, password_hash, role)
        VALUES ($1, $2, $3, $4)
        RETURNING id, name, email, role`,
-      [name, email, password_hash, role || 'IT Staff']
+      [name, email.trim().toLowerCase(), password_hash, role || 'IT Staff']
     );
 
     res.status(201).json(result.rows[0]);
@@ -42,7 +42,7 @@ async function login(req, res) {
   }
 
   try {
-    const result = await pool.query('SELECT * FROM it_staff WHERE email = $1', [email]);
+    const result = await pool.query('SELECT * FROM it_staff WHERE LOWER(email) = LOWER($1)', [email]);
     const user = result.rows[0];
 
     if (!user) {

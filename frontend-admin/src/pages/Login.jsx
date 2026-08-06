@@ -14,7 +14,10 @@ export default function Login({ onLoginSuccess }) {
     setError('');
     setLoading(true);
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post('/auth/login', {
+        email: email.trim().toLowerCase(),
+        password,
+      });
       const { token, user } = res.data;
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
@@ -41,6 +44,8 @@ export default function Login({ onLoginSuccess }) {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          autoCapitalize="none"
+          autoCorrect="off"
           required
           style={inputStyle}
         />
