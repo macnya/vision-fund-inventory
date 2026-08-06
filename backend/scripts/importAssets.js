@@ -2,6 +2,7 @@ require('dotenv').config();
 const path = require('path');
 const xlsx = require('xlsx');
 const pool = require('../src/db/pool');
+const { ASSET_CONDITIONS } = require('../src/constants/assetConditions');
 
 const FILE_PATH = path.join(__dirname, '../data/fixed-asset-register.xlsx');
 const IMPORTER_EMAIL = 'anifa.sumba@visionfundkenya.co.ke'; // must match the it_staff account you registered
@@ -31,7 +32,7 @@ const sheetConfigs = [
   {
     sheetName: 'Motor Vehicles',
     category: 'Motor Vehicles',
-    cols: { code: 'ASSET CODE', desc: 'DESCRIPTION', serial: 'SERIAL NO.', purchaseDate: 'DATE OF PURCHASE', price: 'PURCHASE PRICE', supplier: 'SUPPLIER', dept: 'LOCATION', branch: 'BRANCH', physLoc: 'PHYSICAL LOCATION', status: 'CURRENT STATUS', endDate: 'CURRENT END MONTH DATE', years: 'No. OF YEARS', remLife: 'REMAINING LIFE', monthlyDep: 'Monthly Depreciation', accDep: 'Accumulated Depreciation', nbv: 'NBV' },
+    cols: { code: 'ASSET CODE', desc: 'DESCRIPTION', serial: 'SERIAL NO.', purchaseDate: 'DATE OF PURCHASE', price: 'PURCHASE PRICE', supplier: 'SUPPLIER', dept: 'LOCATION', branch: 'BRANCH', physLoc: 'PHYSICAL LOCATION', status: 'CURRENT STATUS', endDate: 'CURRENT END MONTH DATE', years: 'No. OF YEARS', remLife: 'REMAINING LIFE', monthlyDep: 'Monthly Depreciation', accDep: 'Accumulated Depreciation', nbv: 'NBV', chassis: 'CHASSIS NO', engine: 'ENGINE NO' },
   },
   {
     sheetName: 'Tablets',
@@ -44,6 +45,26 @@ const sheetConfigs = [
     cols: { code: 'ASSET CODE', desc: 'DESCRIPTION', serial: 'SERIAL NO.', purchaseDate: 'DATE OF PURCHASE', price: 'PURCHASE PRICE', supplier: 'SUPPLIER', dept: 'Department', branch: 'BRANCH', physLoc: 'PHYSICAL LOCATION', status: 'STATUS', endDate: 'CURRENT END MONTH DATE', years: 'No. OF YEARS', remLife: 'REMAINING LIFE', monthlyDep: null, accDep: null, nbv: null },
   },
 ];
+
+// The sheet's CURRENT STATUS column is supposed to hold a condition, but in
+// the Motor Vehicles sheet it frequently held an engine number or a location.
+// Importing that verbatim is how ~100 assets ended up with a chassis code as
+// their condition. Anything unrecognised is now reported and stored as NULL
+// ("not recorded") rather than silently accepted or defaulted to 'Good'.
+const rejectedConditions = [];
+
+function normaliseCondition(value, assetCode) {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    return null; // genuinely blank: not recorded, don't claim 'Good'
+  }
+
+  const raw = String(value).trim();
+  const match = ASSET_CONDITIONS.find((c) => c.toLowerCase() === raw.toLowerCase());
+  if (match) return match;
+
+  rejectedConditions.push({ assetCode, value: raw });
+  return null;
+}
 
 function toDateString(value) {
   if (!value) return null;
@@ -142,8 +163,9 @@ async function run() {
           `INSERT INTO asset
             (asset_code, description, asset_category_id, serial_number, date_of_purchase,
              purchase_price, supplier, useful_life_years, remaining_life, monthly_depreciation,
-             accumulated_depreciation, nbv, current_end_month_date, condition)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+             accumulated_depreciation, nbv, current_end_month_date, condition,
+             chassis_number, engine_number)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
            ON CONFLICT (asset_code) DO NOTHING
            RETURNING id`,
           [
@@ -160,7 +182,9 @@ async function run() {
             c.accDep ? toNumber(row[c.accDep]) : null,
             c.nbv ? toNumber(row[c.nbv]) : null,
             c.endDate ? toDateString(row[c.endDate]) : null,
-            row[c.status] || 'Good',
+            normaliseCondition(row[c.status], assetCode),
+            c.chassis ? (row[c.chassis] || null) : null,
+            c.engine ? (row[c.engine] || null) : null,
           ]
         );
 
@@ -196,6 +220,16 @@ async function run() {
     }
 
     console.log(`  → ${sheetImported} imported from ${config.sheetName}`);
+  }
+
+  if (rejectedConditions.length > 0) {
+    console.log(`\n${rejectedConditions.length} rows had an unusable CURRENT STATUS (stored as NULL):`);
+    rejectedConditions.slice(0, 20).forEach((r) => console.log(`  ${r.assetCode}: "${r.value}"`));
+    if (rejectedConditions.length > 20) {
+      console.log(`  ...and ${rejectedConditions.length - 20} more`);
+    }
+    console.log('Fix these in the spreadsheet — CURRENT STATUS should only contain:');
+    console.log(`  ${ASSET_CONDITIONS.join(', ')}`);
   }
 
   console.log(`\nDone. Total imported: ${totalImported}, skipped: ${totalSkipped}`);

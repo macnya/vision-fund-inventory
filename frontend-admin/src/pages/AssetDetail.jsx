@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchAssetDetail, fetchAssetHistory, markAssetDisposed, markAssetLost } from '../api';
 import { colors } from '../theme';
+import { API_BASE_URL } from '../config';
 
 export default function AssetDetail({ assetCode, onBack }) {
   const [data, setData] = useState(null);
@@ -61,8 +62,10 @@ export default function AssetDetail({ assetCode, onBack }) {
   const handlePrintBarcode = async () => {
     try {
       const token = localStorage.getItem('token');
+      // Was hardcoded to production, so barcodes printed from a local dev
+      // session silently hit the live server.
       const response = await fetch(
-        'https://vision-fund-inventory.onrender.com/assets/' + encodeURIComponent(data.asset.asset_code) + '/barcode',
+        `${API_BASE_URL}/assets/${encodeURIComponent(data.asset.asset_code)}/barcode`,
         { headers: { Authorization: 'Bearer ' + token } }
       );
       if (!response.ok) throw new Error('Failed to fetch barcode');
@@ -93,8 +96,13 @@ export default function AssetDetail({ assetCode, onBack }) {
         <h3>Details</h3>
         <Row label="Category" value={asset.category_name} />
         <Row label="Serial Number" value={asset.serial_number} />
+        {/* Vehicles only — hidden for assets that have no such identifier. */}
+        {asset.chassis_number && <Row label="Chassis No" value={asset.chassis_number} />}
+        {asset.engine_number && <Row label="Engine No" value={asset.engine_number} />}
         <Row label="Status" value={asset.status} />
-        <Row label="Condition" value={asset.condition} />
+        {/* A null condition means nobody has physically inspected it yet,
+            which is different from "-" meaning missing data. */}
+        <Row label="Condition" value={asset.condition || 'Not yet verified'} />
         <Row label="Purchase Date" value={asset.date_of_purchase ? asset.date_of_purchase.split('T')[0] : null} />
         <Row label="Purchase Price" value={asset.purchase_price} />
         <Row label="Supplier" value={asset.supplier} />

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api';
+import { clearReauthFlag } from '../offline/syncManager';
 
 export default function LoginScreen({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -16,8 +17,18 @@ export default function LoginScreen({ onLoginSuccess }) {
 
     setLoading(true);
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', {
+        email: email.trim().toLowerCase(),
+        password,
+      });
       await AsyncStorage.setItem('token', response.data.token);
+      // The user record was never stored, so App.js always read back null
+      // and the home screen greeting was permanently blank.
+      if (response.data.user) {
+        await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+      }
+      // A fresh token means any queued work can be retried.
+      clearReauthFlag();
       onLoginSuccess();
     } catch (err) {
       const message = err.response?.data?.error || 'Login failed. Check your connection.';

@@ -49,7 +49,11 @@ export async function createAsset(payload) {
 }
 
 export async function verifyAsset(assetCode, { condition, remarks, latitude, longitude }) {
-  const res = await api.post(`/assets/${assetCode}/verify`, { condition, remarks, latitude, longitude });
+  // Must be encoded: 69 assets have codes like "F&F/002" and "EQP/001".
+  // Unencoded, the slash became an extra path segment, no route matched, and
+  // the server's catch-all returned "Not found" — so those assets could be
+  // scanned and viewed but never verified.
+  const res = await api.post(`/assets/${encodeURIComponent(assetCode)}/verify`, { condition, remarks, latitude, longitude });
   return res.data;
 }
 

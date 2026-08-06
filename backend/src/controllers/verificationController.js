@@ -1,39 +1,50 @@
 const pool = require('../db/pool');
-
-const VALID_CONDITIONS = ['Good', 'Good with issues', 'Faulty'];
+const { ASSET_CONDITIONS, isValidCondition } = require('../constants/assetConditions');
 
 // POST /assets/:asset_code/verify — officer verifies an asset's physical condition
 async function verifyAsset(req, res) {
   const { asset_code } = req.params;
   const { condition, remarks, latitude, longitude } = req.body;
 
-  if (!condition || !VALID_CONDITIONS.includes(condition)) {
+  if (!condition || !isValidCondition(condition)) {
     return res.status(400).json({
-      error: `condition is required and must be one of: ${VALID_CONDITIONS.join(', ')}`,
+      error: `condition is required and must be one of: ${ASSET_CONDITIONS.join(', ')}`,
     });
   }
 
+  const client = await pool.connect();
+
   try {
-    const assetResult = await pool.query('SELECT id FROM asset WHERE asset_code = $1', [asset_code]);
+    await client.query('BEGIN');
+
+    const assetResult = await client.query('SELECT id FROM asset WHERE asset_code = $1', [asset_code]);
     if (assetResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Asset not found' });
     }
     const assetId = assetResult.rows[0].id;
 
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO asset_verification (asset_id, verified_by, condition, remarks, latitude, longitude)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [assetId, req.user.id, condition, remarks || null, latitude ?? null, longitude ?? null]
     );
 
-    // Keep the asset's headline "condition" field in sync with the latest verification
-    await pool.query('UPDATE asset SET condition = $1 WHERE id = $2', [condition, assetId]);
+    // Keep the asset's headline "condition" field in sync with the latest
+    // verification. This runs in the same transaction as the insert above so
+    // the two can't disagree if one of them fails.
+    await client.query('UPDATE asset SET condition = $1 WHERE id = $2', [condition, assetId]);
+
+    await client.query('COMMIT');
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Failed to record verification' });
+  } finally {
+    client.release();
   }
 }
 
@@ -79,8 +90,14 @@ async function getVerificationReport(req, res) {
       query += ` AND v.verified_at >= $${params.length}`;
     }
     if (to) {
+      // A date with no time component ("2026-08-06") compared with <= would
+      // stop at midnight and exclude everything verified during that day, so
+      // treat a bare date as "up to the end of that day".
+      const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(to).trim());
       params.push(to);
-      query += ` AND v.verified_at <= $${params.length}`;
+      query += isDateOnly
+        ? ` AND v.verified_at < (($${params.length})::date + INTERVAL '1 day')`
+        : ` AND v.verified_at <= $${params.length}`;
     }
 
     query += ` ORDER BY v.verified_at DESC LIMIT 1000`;

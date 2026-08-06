@@ -8,7 +8,7 @@ import AssetDetailScreen from './screens/AssetDetailScreen';
 import RecentActivityScreen from './screens/RecentActivityScreen';
 import CreateAssetScreen from './screens/CreateAssetScreen';
 import OfflineBanner from './components/OfflineBanner';
-import { startAutoSync } from './offline/syncManager';
+import { startAutoSync, subscribeToSyncState, processPendingActions } from './offline/syncManager';
 import { getAssetByCodeOffline } from './offline/offlineApi';
 
 export default function App() {
@@ -18,15 +18,25 @@ export default function App() {
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
-    console.log('App mounted, starting auto sync...');
-    let unsubscribe;
+    let unsubscribeSync;
     try {
-      unsubscribe = startAutoSync();
-      console.log('startAutoSync() succeeded');
+      unsubscribeSync = startAutoSync();
     } catch (e) {
-      console.log('startAutoSync() THREW:', e);
+      console.warn('Failed to start offline sync:', e);
     }
-    return () => unsubscribe && unsubscribe();
+
+    // If a sync attempt comes back unauthorised, the queued work is still
+    // safely on the device — the officer just needs to sign in again before
+    // it can be sent. Bounce them to the login screen instead of leaving
+    // them on a screen where nothing will save.
+    const unsubscribeState = subscribeToSyncState((state) => {
+      if (state.needsReauth) setScreen('login');
+    });
+
+    return () => {
+      unsubscribeSync && unsubscribeSync();
+      unsubscribeState && unsubscribeState();
+    };
   }, []);
 
   const handleLoginSuccess = async () => {
@@ -36,6 +46,8 @@ export default function App() {
       setUserName(user.name || '');
     }
     setScreen('home');
+    // Anything queued while the session was expired can go now.
+    processPendingActions();
   };
 
   const handleScanSuccess = (data) => {
@@ -76,7 +88,6 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    console.log('Logout tapped');
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
     setScreen('login');
@@ -89,9 +100,9 @@ export default function App() {
       {screen === 'home' && (
         <HomeScreen
           userName={userName}
-          onScan={() => { console.log('Scan tapped'); setScreen('scanner'); }}
+          onScan={() => setScreen('scanner')}
           onSearchResult={handleSearchResult}
-          onViewActivity={() => { console.log('Activity tapped'); setScreen('activity'); }}
+          onViewActivity={() => setScreen('activity')}
           onLogout={handleLogout}
         />
       )}

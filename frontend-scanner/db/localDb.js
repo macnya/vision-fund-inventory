@@ -27,6 +27,20 @@ db.execSync(`
   );
 `);
 
+// Migration for devices that already have the table from an earlier install.
+// SQLite has no "ADD COLUMN IF NOT EXISTS", and re-running it throws, so the
+// throw is the success signal on second run.
+try {
+  db.execSync(`ALTER TABLE pending_action ADD COLUMN last_error TEXT`);
+} catch {
+  // Column already present.
+}
+try {
+  db.execSync(`ALTER TABLE pending_action ADD COLUMN failed_at TEXT`);
+} catch {
+  // Column already present.
+}
+
 // ---- Asset cache (keyed by scanned/searched asset_code) ----
 export function cacheAsset(assetCode, data) {
   db.runSync(
@@ -95,8 +109,41 @@ export function markActionSynced(id) {
   db.runSync(`DELETE FROM pending_action WHERE id = ?`, [id]);
 }
 
-export function markActionFailed(id) {
-  db.runSync(`UPDATE pending_action SET status = 'failed' WHERE id = ?`, [id]);
+// A failed action is one the server actively rejected (bad data, missing
+// asset, duplicate). It is kept — not deleted — so the officer can see what
+// didn't make it and decide what to do, rather than silently losing the work.
+export function markActionFailed(id, reason) {
+  db.runSync(
+    `UPDATE pending_action SET status = 'failed', last_error = ?, failed_at = ? WHERE id = ?`,
+    [reason || 'Rejected by the server', new Date().toISOString(), id]
+  );
+}
+
+export function getFailedActions() {
+  const rows = db.getAllSync(`SELECT * FROM pending_action WHERE status = 'failed' ORDER BY id ASC`);
+  return rows.map((r) => ({ ...r, payload: JSON.parse(r.payload) }));
+}
+
+export function getTotalFailedCount() {
+  const row = db.getFirstSync(`SELECT COUNT(*) as count FROM pending_action WHERE status = 'failed'`);
+  return row ? row.count : 0;
+}
+
+// Puts failed actions back in the queue for another attempt.
+export function retryFailedActions() {
+  const result = db.runSync(
+    `UPDATE pending_action SET status = 'pending', last_error = NULL, failed_at = NULL WHERE status = 'failed'`
+  );
+  return result.changes ?? 0;
+}
+
+export function discardFailedAction(id) {
+  db.runSync(`DELETE FROM pending_action WHERE id = ? AND status = 'failed'`, [id]);
+}
+
+export function discardAllFailedActions() {
+  const result = db.runSync(`DELETE FROM pending_action WHERE status = 'failed'`);
+  return result.changes ?? 0;
 }
 
 export default db;

@@ -26,6 +26,15 @@ app.get('/', (req, res) => res.send('Vision Fund Inventory API running'));
 app.get('/health', (req, res) => res.status(200).json({ status: 'ok', time: new Date().toISOString() }));
 
 app.use('/auth', authRoutes);
+
+// Mounted at '/' because it owns paths under two different prefixes
+// (/assets/:code/verify and /verifications). It has to come BEFORE the
+// '/assets' router: previously it sat after, so verification requests were
+// matched only by falling all the way through the asset router first, which
+// ran verifyToken twice and would have broken silently the moment anyone
+// added a catch-all route to assetRoutes.
+app.use('/', verificationRoutes);
+
 app.use('/assets', assetRoutes);
 app.use('/assignments', assignmentRoutes);
 app.use('/employees', employeeRoutes);
@@ -33,7 +42,6 @@ app.use('/locations', locationRoutes);
 app.use('/disposals', disposalRoutes);
 app.use('/lost-assets', lostAssetRoutes);
 app.use('/dashboard', dashboardRoutes);
-app.use('/', verificationRoutes);
 
 // 404 for unknown routes
 app.use((req, res) => {

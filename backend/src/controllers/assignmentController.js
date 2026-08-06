@@ -2,10 +2,7 @@ const pool = require("../db/pool");
 
 // POST /assignments
 async function createAssignment(req, res) {
-  console.log("========== CREATE ASSIGNMENT ==========");
-  console.log("Request body:", req.body);
-  console.log("Authenticated user:", req.user);
-
+  
   const {
     asset_id,
     employee_id,
@@ -107,24 +104,15 @@ async function createAssignment(req, res) {
 
     await client.query("COMMIT");
 
-    console.log("Assignment created successfully.");
-
     return res.status(201).json(newAssignment.rows[0]);
 
   } catch (err) {
     await client.query("ROLLBACK");
 
-    console.error("========== ASSIGNMENT ERROR ==========");
-    console.error("Message:", err.message);
-    console.error("Code:", err.code);
-    console.error("Detail:", err.detail);
-    console.error("Constraint:", err.constraint);
-    console.error("Stack:", err.stack);
-    console.error("======================================");
+    console.error("Create Assignment Error:", err);
 
     return res.status(500).json({
       error: "Failed to create assignment",
-      details: err.message,
     });
 
   } finally {
@@ -210,7 +198,6 @@ async function returnAssignment(req, res) {
 
     res.status(500).json({
       error: "Failed to return assignment",
-      details: err.message,
     });
 
   } finally {
