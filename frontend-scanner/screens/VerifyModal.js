@@ -5,8 +5,7 @@ import {
 } from 'react-native';
 import { verifyAssetOffline } from '../offline/offlineApi';
 import * as Location from 'expo-location';
-
-const CONDITIONS = ['Good', 'Good with issues', 'Faulty'];
+import { ASSET_CONDITIONS } from '../constants/assetConditions';
 
 export default function VerifyModal({ visible, assetCode, onClose, onVerified }) {
   const [condition, setCondition] = useState(null);
@@ -27,7 +26,14 @@ export default function VerifyModal({ visible, assetCode, onClose, onVerified })
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return { latitude: null, longitude: null };
-      const loc = await Location.getCurrentPositionAsync({});
+      // Verification happens inside branch offices where a precise fix can
+      // take a very long time or never arrive. Accept a coarser reading and
+      // give up after 10s rather than leaving the officer on a spinner.
+      const loc = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 10000)),
+      ]);
+      if (!loc) return { latitude: null, longitude: null };
       return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
     } catch {
       return { latitude: null, longitude: null };
@@ -64,7 +70,7 @@ export default function VerifyModal({ visible, assetCode, onClose, onVerified })
         <Text style={styles.subtitle}>{assetCode}</Text>
 
         <Text style={styles.sectionLabel}>Condition</Text>
-        {CONDITIONS.map((c) => (
+        {ASSET_CONDITIONS.map((c) => (
           <TouchableOpacity
             key={c}
             style={[styles.option, condition === c && optionColor(c)]}

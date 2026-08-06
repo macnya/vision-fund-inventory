@@ -8,14 +8,10 @@ export default function ScannerScreen({ onScanSuccess, onNotFound, onBack }) {
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  console.log('Camera permission status:', permission);
-
   const handleBarcodeScanned = async ({ data }) => {
     if (scanned || loading) return;
     setScanned(true);
     setLoading(true);
-
-    console.log('Scanned raw data:', JSON.stringify(data));
 
     try {
       const { data: assetData, fromCache } = await getAssetByCodeOffline(data);

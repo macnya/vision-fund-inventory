@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { fetchCategories, createAsset } from '../api';
+import { ASSET_CONDITIONS, DEFAULT_CONDITION } from '../constants/assetConditions';
 
 export default function CreateAssetScreen({ scannedCode, onCreated, onCancel }) {
   const [categories, setCategories] = useState([]);
@@ -12,7 +13,7 @@ export default function CreateAssetScreen({ scannedCode, onCreated, onCancel }) 
   const [description, setDescription] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [supplier, setSupplier] = useState('');
-  const [condition, setCondition] = useState('Good');
+  const [condition, setCondition] = useState(DEFAULT_CONDITION);
   const [loading, setLoading] = useState(false);
   const [loadingCategories, setLoadingCategories] = useState(true);
 
@@ -89,11 +90,14 @@ export default function CreateAssetScreen({ scannedCode, onCreated, onCancel }) 
         onChangeText={setSupplier}
       />
 
+      {/* Driven by the shared list rather than hardcoded. This picker used to
+          offer "Fair", which the backend rejects and no verification could
+          ever produce — the last place that value could still be created. */}
       <View style={styles.pickerWrapper}>
         <Picker selectedValue={condition} onValueChange={setCondition}>
-          <Picker.Item label="Good" value="Good" />
-          <Picker.Item label="Fair" value="Fair" />
-          <Picker.Item label="Faulty" value="Faulty" />
+          {ASSET_CONDITIONS.map((c) => (
+            <Picker.Item key={c} label={c} value={c} />
+          ))}
         </Picker>
       </View>
 

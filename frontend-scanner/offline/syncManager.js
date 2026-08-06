@@ -1,4 +1,5 @@
 import NetInfo from '@react-native-community/netinfo';
+import { classifyError } from './classifyError';
 import { verifyAsset, assignAsset, checkInAssignment } from '../api';
 import {
   getPendingActions,
@@ -63,29 +64,6 @@ async function runAction(action) {
     return checkInAssignment(payload.assignmentId, { latitude: payload.latitude, longitude: payload.longitude });
   }
   throw new Error(`Unknown queued action type: ${type}`);
-}
-
-// Decides what a failed sync attempt means for the queued action.
-//
-// This used to be a two-way split: no response meant "still offline, keep it",
-// and *everything else* meant "permanently failed". That quietly destroyed
-// work. Tokens last 8 hours, so an officer who queued a day of verifications
-// offline came back to a 401 on every item — each of which has a response —
-// and the whole queue was marked failed and never shown again.
-//
-//   retry  — transient; stop the run and leave everything pending
-//   reauth — session expired; stop, leave pending, prompt for login
-//   reject — the server genuinely refused this payload; park it as failed
-function classifyError(err) {
-  if (!err.response) return 'retry';        // network unreachable
-
-  const status = err.response.status;
-
-  if (status === 401 || status === 403) return 'reauth';
-  if (status === 408 || status === 429) return 'retry';   // timeout / rate limited
-  if (status >= 500) return 'retry';                      // server-side, likely temporary
-
-  return 'reject';                                        // 400, 404, 409, 422, ...
 }
 
 function errorMessage(err) {

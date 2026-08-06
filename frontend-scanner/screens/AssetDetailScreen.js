@@ -91,7 +91,7 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
         <Text style={styles.sectionTitle}>Current Assignment</Text>
         {current_assignment ? (
           <>
-            <Row label="Employee" value={current_assignment.employee_name || 'Held by location, not a person'} />
+            <Row label="Employee" value={current_assignment.employee_name} />
             {current_assignment.employee_department ? (
               <Row label="Department" value={current_assignment.employee_department} />
             ) : null}
