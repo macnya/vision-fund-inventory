@@ -41,9 +41,12 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
   }, [activeSearch, status]);
 
   useEffect(() => {
+    // Fetch-on-mount. The rule objects because loadAssets sets loading state
+    // before its first await, but that's inherent to showing a spinner while
+    // fetching — there's no external system to synchronise with here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAssets();
   }, [loadAssets]);
-
   const loadMore = async () => {
     setLoadingMore(true);
     setError('');

@@ -5,6 +5,7 @@ const {
   verifyAsset,
   getVerificationReport,
   getVerificationsForAsset,
+  updateVerification,
 } = require('../controllers/verificationController');
 
 // POST /assets/:asset_code/verify
@@ -23,5 +24,14 @@ router.get('/assets/:asset_code/verifications', verifyToken, getVerificationsFor
 
 // GET /verifications  (report, supports ?branch=&condition=&from=&to=)
 router.get('/verifications', verifyToken, getVerificationReport);
+
+// PATCH /verifications/:id — correct a mistyped condition or remark.
+// Admin only: officers record what they see, admins correct the record.
+router.patch(
+  '/verifications/:id',
+  verifyToken,
+  requireRole(ROLES.ADMIN),
+  updateVerification
+);
 
 module.exports = router;

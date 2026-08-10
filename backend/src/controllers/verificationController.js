@@ -64,12 +64,15 @@ async function getVerificationReport(req, res) {
         a.asset_code,
         a.description,
         s.name AS verified_by_name,
+        v.edited_at,
+        ed.name AS edited_by_name,
         e.name AS assigned_to,
         l.branch,
         l.physical_location
       FROM asset_verification v
       JOIN asset a ON a.id = v.asset_id
       JOIN it_staff s ON s.id = v.verified_by
+      LEFT JOIN it_staff ed ON ed.id = v.edited_by
       LEFT JOIN assignment ag ON ag.asset_id = a.id AND ag.returned_date IS NULL
       LEFT JOIN employee e ON e.id = ag.employee_id
       LEFT JOIN location l ON l.id = ag.location_id
@@ -139,4 +142,73 @@ async function getVerificationsForAsset(req, res) {
   }
 }
 
-module.exports = { verifyAsset, getVerificationReport, getVerificationsForAsset };
+// PATCH /verifications/:id — correct a condition or remarks entered by mistake.
+//
+// Admin only. The correction is RECORDED rather than applied silently: an asset
+// register is an audit document, and "why did this go from Faulty to Good in
+// March?" needs an answer better than "someone changed it". Requires:
+//
+//   ALTER TABLE asset_verification ADD COLUMN IF NOT EXISTS edited_by INTEGER REFERENCES it_staff(id);
+//   ALTER TABLE asset_verification ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP;
+async function updateVerification(req, res) {
+  const { id } = req.params;
+  const { condition, remarks } = req.body;
+
+  if (!condition || !isValidCondition(condition)) {
+    return res.status(400).json({
+      error: `condition is required and must be one of: ${ASSET_CONDITIONS.join(', ')}`,
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const existing = await client.query(
+      'SELECT id, asset_id, condition FROM asset_verification WHERE id = $1',
+      [id]
+    );
+    if (existing.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Verification not found' });
+    }
+    const { asset_id } = existing.rows[0];
+
+    const updated = await client.query(
+      `UPDATE asset_verification
+       SET condition = $1, remarks = $2, edited_by = $3, edited_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [condition, remarks || null, req.user.id, id]
+    );
+
+    // asset.condition mirrors the MOST RECENT verification. Correcting an older
+    // record must not overwrite the asset's current state — otherwise fixing a
+    // typo from March would silently undo every verification since.
+    const latest = await client.query(
+      `SELECT id FROM asset_verification
+       WHERE asset_id = $1
+       ORDER BY verified_at DESC, id DESC
+       LIMIT 1`,
+      [asset_id]
+    );
+    const isLatest = latest.rows.length > 0 && String(latest.rows[0].id) === String(id);
+
+    if (isLatest) {
+      await client.query('UPDATE asset SET condition = $1 WHERE id = $2', [condition, asset_id]);
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ ...updated.rows[0], applied_to_asset: isLatest });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update verification' });
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { verifyAsset, getVerificationReport, getVerificationsForAsset, updateVerification };

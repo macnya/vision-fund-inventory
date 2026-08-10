@@ -72,10 +72,18 @@ async function getDashboardStats(req, res) {
   }
 }
 
-// GET /dashboard/asset-locations — latest known GPS position per asset,
-// pulled from whichever is more recent: a scan_log entry (assign/transfer/
-// check-in) or an asset_verification entry. Used to plot assets on a map.
+// GET /dashboard/asset-locations
+//
+// Latest known GPS position per asset, from whichever is more recent: a
+// scan_log entry (assign / transfer / check-in) or an asset_verification.
+//
+// ?verifiedOnly=true restricts the map to positions captured during a physical
+// VERIFICATION, ignoring assignment and check-in scans. The two answer
+// different questions: "where was this last touched" versus "where has someone
+// actually stood next to it and confirmed its condition".
 async function getAssetLocations(req, res) {
+  const verifiedOnly = String(req.query.verifiedOnly).toLowerCase() === 'true';
+
   try {
     const result = await pool.query(`
       SELECT
@@ -83,10 +91,13 @@ async function getAssetLocations(req, res) {
         a.asset_code,
         a.description,
         a.status,
+        a.condition AS asset_condition,
         ac.name AS category_name,
         loc.latitude,
         loc.longitude,
         loc.recorded_at,
+        loc.source,
+        loc.condition AS verified_condition,
         l.branch AS current_branch,
         e.name AS current_holder
       FROM asset a
@@ -95,21 +106,29 @@ async function getAssetLocations(req, res) {
       LEFT JOIN location l ON l.id = ag.location_id
       LEFT JOIN employee e ON e.id = ag.employee_id
       LEFT JOIN LATERAL (
-        SELECT latitude, longitude, recorded_at FROM (
-          SELECT sl.latitude, sl.longitude, sl.timestamp AS recorded_at
+        SELECT latitude, longitude, recorded_at, source, condition FROM (
+          -- Scans are excluded entirely when verifiedOnly is set, rather than
+          -- filtered afterwards, so the "most recent" pick below still returns
+          -- the latest VERIFICATION and not the latest scan.
+          SELECT sl.latitude, sl.longitude, sl.timestamp AS recorded_at,
+                 sl.action AS source, NULL::text AS condition
           FROM scan_log sl
-          WHERE sl.asset_id = a.id AND sl.latitude IS NOT NULL AND sl.longitude IS NOT NULL
+          WHERE sl.asset_id = a.id
+            AND sl.latitude IS NOT NULL AND sl.longitude IS NOT NULL
+            AND NOT $1::boolean
           UNION ALL
-          SELECT v.latitude, v.longitude, v.verified_at AS recorded_at
+          SELECT v.latitude, v.longitude, v.verified_at AS recorded_at,
+                 'Verification' AS source, v.condition
           FROM asset_verification v
-          WHERE v.asset_id = a.id AND v.latitude IS NOT NULL AND v.longitude IS NOT NULL
+          WHERE v.asset_id = a.id
+            AND v.latitude IS NOT NULL AND v.longitude IS NOT NULL
         ) combined
         ORDER BY recorded_at DESC
         LIMIT 1
       ) loc ON true
       WHERE loc.latitude IS NOT NULL
       ORDER BY loc.recorded_at DESC
-    `);
+    `, [verifiedOnly]);
 
     res.json(result.rows);
   } catch (err) {
@@ -118,8 +137,7 @@ async function getAssetLocations(req, res) {
   }
 }
 
-// GET /dashboard/report/pdf — downloadable PDF summary: totals, and
-// counts + value broken down by category and by branch.
+
 async function getSummaryReportPdf(req, res) {
   try {
     const [totalsResult, categoryResult, branchResult] = await Promise.all([

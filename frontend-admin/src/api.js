@@ -83,8 +83,19 @@ export async function fetchDashboardStats() {
   return res.data;
 }
 
-export async function fetchAssetLocations() {
-  const res = await api.get('/dashboard/asset-locations');
+// verifiedOnly restricts the map to GPS captured during a physical
+// verification, ignoring assignment and check-in scans.
+export async function fetchAssetLocations({ verifiedOnly = false } = {}) {
+  const res = await api.get('/dashboard/asset-locations', {
+    params: verifiedOnly ? { verifiedOnly: 'true' } : {},
+  });
+  return res.data;
+}
+
+// PATCH /verifications/:id — admin correction of a mistyped condition/remark.
+// The server records who changed it and when.
+export async function updateVerification(id, { condition, remarks }) {
+  const res = await api.patch(`/verifications/${id}`, { condition, remarks });
   return res.data;
 }
 
