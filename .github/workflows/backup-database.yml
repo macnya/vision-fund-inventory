@@ -13,7 +13,7 @@
 # (it sets search_path, takes a consistent snapshot) which transaction-mode
 # pooling does not preserve; against 6543 it fails or produces a partial dump.
 #
-# In Supabase: Project Settings -> Database -> Connection string -> Session pooler.
+# In Supabase: the Connect button in the top bar -> Session pooler.
 #
 # SETUP
 #   1. Repo -> Settings -> Secrets and variables -> Actions -> New secret
@@ -36,17 +36,32 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Install PostgreSQL 17 client
-        # The runner ships an older client, and pg_dump refuses to dump from a
-        # server newer than itself. Pinning to 17 keeps this working when
-        # Supabase upgrades.
+      - name: Install a PostgreSQL client matching the server
+        # The runner preinstalls client 16, but Supabase is on 17 and pg_dump
+        # refuses to dump from a newer server. Installing the newer client is
+        # not enough on its own: apt puts it in /usr/lib/postgresql/17/bin,
+        # which is NOT on PATH, so `pg_dump` silently kept meaning 16.
         run: |
-          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
-          sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
+          set -euo pipefail
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Confirm the client is actually version 17
+        # Assert rather than print. A green install step told us nothing last
+        # time — the failure only surfaced two steps later.
+        run: |
+          set -euo pipefail
+          echo "pg_dump resolves to: $(which pg_dump)"
           pg_dump --version
+          pg_dump --version | grep -q " 17\." || {
+            echo "PATH is still pointing at an older pg_dump."
+            exit 1
+          }
 
       - name: Verify the secret is set
         env:
