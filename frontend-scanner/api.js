@@ -17,6 +17,13 @@ api.interceptors.request.use(async (config) => {
 
 export default api;
 
+// Fire-and-forget nudge to wake a sleeping server. Deliberately NOT awaited by
+// callers and deliberately swallows its own errors: if the officer is offline
+// this must not surface as a failure, because the app works offline by design.
+export function wakeServer() {
+  api.get('/health', { timeout: 60000 }).catch(() => {});
+}
+
 // Convenience functions used across screens
 export async function fetchEmployees() {
   const res = await api.get('/employees');

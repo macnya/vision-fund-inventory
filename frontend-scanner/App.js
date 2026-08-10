@@ -10,6 +10,7 @@ import CreateAssetScreen from './screens/CreateAssetScreen';
 import OfflineBanner from './components/OfflineBanner';
 import { startAutoSync, subscribeToSyncState, processPendingActions } from './offline/syncManager';
 import { getAssetByCodeOffline } from './offline/offlineApi';
+import { wakeServer } from './api';
 
 export default function App() {
   const [screen, setScreen] = useState('login'); // 'login' | 'home' | 'scanner' | 'assetDetail' | 'activity' | 'createAsset'
@@ -17,6 +18,14 @@ export default function App() {
   const [scannedCode, setScannedCode] = useState('');
   const [userName, setUserName] = useState('');
 
+  // Render's free tier sleeps after ~15 minutes idle and takes around 50
+  // seconds to wake. Without this the first scan of the day appears to hang,
+  // and because the offline layer reads a timeout as "no network", those first
+  // actions queue when they didn't need to. Firing this at launch means the
+  // server is waking while the officer is still typing their password.
+  useEffect(() => {
+    wakeServer();
+  }, []);
   useEffect(() => {
     let unsubscribeSync;
     try {
