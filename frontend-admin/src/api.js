@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_BASE_URL } from './config';
 
 const api = axios.create({
-  baseURL: 'https://vision-fund-inventory.onrender.com',
+  baseURL: API_BASE_URL,
 });
 
 api.interceptors.request.use((config) => {
@@ -12,7 +13,50 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Tokens last 8 hours. Without this, expiry showed up as unexplained blank
+// tables and failed saves scattered across the app, with no way back to the
+// login screen short of a manual refresh.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+
+    if (status === 401 && !isLoginRequest) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Reloading drops us back to <Login /> because App reads user from storage.
+      window.location.reload();
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export default api;
+
+// Trades the current (still valid) token for a fresh 8h one. Called on app
+// load so a working session doesn't expire mid-afternoon. The endpoint already
+// existed on the backend but nothing had ever called it.
+export async function refreshSession() {
+  const res = await api.post('/auth/refresh');
+  localStorage.setItem('token', res.data.token);
+  localStorage.setItem('user', JSON.stringify(res.data.user));
+  return res.data.user;
+}
+
+// GET /assets is paginated and returns { data, total, limit, offset } rather
+// than a bare array. Passing limit/offset through lets the list page properly
+// instead of silently showing the first 200 rows.
+export async function fetchAssets({ search, status, limit, offset } = {}) {
+  const params = {};
+  if (search) params.search = search;
+  if (status) params.status = status;
+  if (limit != null) params.limit = limit;
+  if (offset != null) params.offset = offset;
+  const res = await api.get('/assets', { params });
+  return res.data;
+}
 
 export async function fetchAssetDetail(assetCode) {
   const res = await api.get(`/assets/${encodeURIComponent(assetCode)}`);
