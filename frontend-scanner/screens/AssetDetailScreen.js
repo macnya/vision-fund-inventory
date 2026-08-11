@@ -7,7 +7,8 @@ import * as Location from 'expo-location';
 import { Linking } from 'react-native';
 
 export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
-  const { asset, current_assignment, last_seen, last_holder, pendingSync } = assetData;
+  const { asset, current_assignment, last_seen, last_holder, timeline, pendingSync } = assetData;
+  const [showAllHistory, setShowAllHistory] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -137,6 +138,42 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
         )}
       </View>
 
+      {/* Custody and inspection trail. Assignments and verifications live in
+          different tables, so the backend merges them into one chronological
+          list — otherwise "who has had this?" and "who checked it?" are two
+          separate questions with two separate answers. */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>
+          History{Array.isArray(timeline) && timeline.length > 0 ? ` (${timeline.length})` : ''}
+        </Text>
+
+        {!Array.isArray(timeline) || timeline.length === 0 ? (
+          <Text style={styles.noAssignment}>
+            No recorded history. Events appear here each time this asset is assigned,
+            returned to storage, or verified.
+          </Text>
+        ) : (
+          <>
+            {(showAllHistory ? timeline : timeline.slice(0, 5)).map((e) => (
+              <HistoryRow key={e.event_id} event={e} />
+            ))}
+
+            {timeline.length > 5 && (
+              <TouchableOpacity
+                style={styles.moreButton}
+                onPress={() => setShowAllHistory((v) => !v)}
+              >
+                <Text style={styles.moreButtonText}>
+                  {showAllHistory
+                    ? 'Show less'
+                    : `Show all ${timeline.length} events`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+      </View>
+
       <TouchableOpacity style={styles.verifyButton} onPress={() => setShowVerifyModal(true)}>
         <Text style={styles.actionButtonText}>Verify Asset</Text>
       </TouchableOpacity>
@@ -173,6 +210,60 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
   );
 }
 
+// One event in the trail. Reads as a sentence rather than a table row,
+// because a phone is too narrow for columns and an officer needs to scan it
+// quickly, not study it.
+function HistoryRow({ event }) {
+  const color = EVENT_COLORS[event.type] || '#6b7280';
+
+  const from = event.from_holder || event.from_place || event.from_branch;
+  const to = event.to_holder || event.to_place || event.to_branch;
+
+  return (
+    <View style={styles.historyRow}>
+      <View style={styles.historyHeader}>
+        <View style={[styles.badge, { backgroundColor: color }]}>
+          <Text style={styles.badgeText}>{event.type}</Text>
+        </View>
+        <Text style={styles.historyDate}>
+          {new Date(event.at).toLocaleDateString()}{' '}
+          {new Date(event.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      </View>
+
+      {event.type === 'Verification' ? (
+        <Text style={styles.historyBody}>
+          Verified by <Text style={styles.bold}>{event.actor || 'unknown'}</Text>
+          {event.condition ? (
+            <Text> as <Text style={[styles.bold, { color }]}>{event.condition}</Text></Text>
+          ) : null}
+        </Text>
+      ) : (
+        <Text style={styles.historyBody}>
+          {from ? (
+            <Text>From <Text style={styles.bold}>{from}</Text> </Text>
+          ) : null}
+          {to ? (
+            <Text>to <Text style={styles.bold}>{to}</Text> </Text>
+          ) : null}
+          {!from && !to ? <Text>Recorded </Text> : null}
+          by <Text style={styles.bold}>{event.actor || 'unknown'}</Text>
+        </Text>
+      )}
+
+      {event.remarks ? (
+        <Text style={styles.historyRemarks}>"{event.remarks}"</Text>
+      ) : null}
+
+      {event.map_url ? (
+        <TouchableOpacity onPress={() => Linking.openURL(event.map_url)}>
+          <Text style={styles.historyMapLink}>View location</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
 function Row({ label, value }) {
   return (
     <View style={styles.row}>
@@ -181,6 +272,17 @@ function Row({ label, value }) {
     </View>
   );
 }
+
+// Matches the badge colours used on the admin audit table, so the same event
+// means the same colour wherever staff look at it.
+const EVENT_COLORS = {
+  'Transfer': '#2563eb',
+  'Check-In': '#16a34a',
+  'Verification': '#b8590c',
+  'Disposed': '#dc2626',
+  'Lost': '#d97706',
+  'Import': '#6b7280',
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
@@ -206,16 +308,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10, alignItems: 'center',
   },
   mapButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  verifyButton: {
-    backgroundColor: '#b8590c', borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4, marginBottom: 12,
+  historyRow: {
+    borderLeftWidth: 3, borderLeftColor: '#e0e0e0',
+    paddingLeft: 10, paddingVertical: 8, marginBottom: 4,
   },
-  actionButton: {
-    backgroundColor: '#2d7a4f', borderRadius: 8, padding: 16, alignItems: 'center', marginTop: 4,
-  },
-  actionButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  backButton: {
-    backgroundColor: '#1e3a5f', borderRadius: 8, padding: 16,
-    alignItems: 'center', marginTop: 12, marginBottom: 40,
-  },
-  backButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  historyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginRight: 8 },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  historyDate: { fontSize: 11, color: '#999' },
+  historyBody: { fontSize: 13, color: '#333', lineHeight: 18 },
+  bold: { fontWeight: '700' },
+  historyRemarks: { fontSize: 12, color: '#777', fontStyle: 'italic', marginTop: 3 },
+  historyMapLink: { fontSize: 12, color: '#2563eb', fontWeight: '600', marginTop: 4 },
+  moreButton: { paddingVertical: 10, alignItems: 'center' },
+  moreButtonText: { color: '#1e3a5f', fontWeight: '600', fontSize: 13 },
 });

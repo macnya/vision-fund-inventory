@@ -138,24 +138,65 @@ async function getAssetByCode(req, res) {
       [asset.id]
     );
 
-    // Most recent GPS fix for this asset, from whichever is newer: a scan
-    // (assign / transfer / check-in) or a physical verification. An office
-    // name like "Eldoret Office" says where it is supposed to be; this says
-    // where it was last actually seen.
-    const lastSeenResult = await pool.query(
-      `SELECT latitude, longitude, recorded_at, source FROM (
-         SELECT sl.latitude, sl.longitude, sl.timestamp AS recorded_at, sl.action AS source
+    // Full custody and inspection trail in one list: who handed the asset
+    // over, who took it, who returned it to stock, and who physically
+    // verified it. scan_log and asset_verification are separate tables, so
+    // neither alone answers "what has happened to this asset".
+    const timelineResult = await pool.query(
+      `SELECT * FROM (
+         SELECT
+           'scan-' || sl.id::text        AS event_id,
+           sl.action::text               AS type,
+           sl.timestamp                  AS at,
+           s.name                        AS actor,
+           fe.name                       AS from_holder,
+           te.name                       AS to_holder,
+           fl.branch                     AS from_branch,
+           tl.branch                     AS to_branch,
+           fl.physical_location          AS from_place,
+           tl.physical_location          AS to_place,
+           NULL::text                    AS condition,
+           sl.notes::text                AS remarks,
+           sl.latitude, sl.longitude
          FROM scan_log sl
-         WHERE sl.asset_id = $1 AND sl.latitude IS NOT NULL AND sl.longitude IS NOT NULL
+         LEFT JOIN employee fe ON fe.id = sl.from_employee_id
+         LEFT JOIN employee te ON te.id = sl.to_employee_id
+         LEFT JOIN location fl ON fl.id = sl.from_location_id
+         LEFT JOIN location tl ON tl.id = sl.to_location_id
+         LEFT JOIN it_staff s  ON s.id  = sl.scanned_by
+         WHERE sl.asset_id = $1
+
          UNION ALL
-         SELECT v.latitude, v.longitude, v.verified_at AS recorded_at, 'Verification' AS source
+
+         SELECT
+           'verify-' || v.id::text,
+           'Verification',
+           v.verified_at,
+           s.name,
+           NULL, NULL, NULL, NULL, NULL, NULL,
+           v.condition::text,
+           v.remarks::text,
+           v.latitude, v.longitude
          FROM asset_verification v
-         WHERE v.asset_id = $1 AND v.latitude IS NOT NULL AND v.longitude IS NOT NULL
-       ) combined
-       ORDER BY recorded_at DESC
-       LIMIT 1`,
+         JOIN it_staff s ON s.id = v.verified_by
+         WHERE v.asset_id = $1
+       ) events
+       ORDER BY at DESC
+       LIMIT 100`,
       [asset.id]
     );
+
+    const timeline = timelineResult.rows.map((e) => ({
+      ...e,
+      map_url:
+        e.latitude != null && e.longitude != null
+          ? `https://www.google.com/maps?q=${e.latitude},${e.longitude}`
+          : null,
+    }));
+
+    // The newest event carrying GPS is, by definition, where the asset was
+    // last seen — so this comes free rather than costing a second query.
+    const lastSeenEvent = timeline.find((e) => e.latitude != null && e.longitude != null) || null;
 
     // If nobody holds it now, who held it last? Useful when chasing an asset
     // that reads In Stock but isn't on the shelf.
@@ -170,18 +211,22 @@ async function getAssetByCode(req, res) {
       [asset.id]
     );
 
-    const lastSeen = lastSeenResult.rows[0] || null;
+    const lastSeen = lastSeenEvent
+      ? {
+          latitude: lastSeenEvent.latitude,
+          longitude: lastSeenEvent.longitude,
+          recorded_at: lastSeenEvent.at,
+          source: lastSeenEvent.type,
+          map_url: lastSeenEvent.map_url,
+        }
+      : null;
 
     res.json({
       asset,
       current_assignment: assignmentResult.rows[0] || null,
-      last_seen: lastSeen
-        ? {
-            ...lastSeen,
-            map_url: `https://www.google.com/maps?q=${lastSeen.latitude},${lastSeen.longitude}`,
-          }
-        : null,
+      last_seen: lastSeen,
       last_holder: assignmentResult.rows.length === 0 ? lastHolderResult.rows[0] || null : null,
+      timeline,
     });
   } catch (err) {
     console.error(err);
