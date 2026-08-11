@@ -18,7 +18,10 @@ const ASSET_JOINS = `
   LEFT JOIN location l ON ag.location_id = l.id
 `;
 
-function buildAssetFilter({ search, category, status, branch }) {
+// `assigned` and `sort` are new. Assignment state can't be read off
+// asset.status alone — an asset can be In Stock with a stale open assignment —
+// so it's derived from whether a live assignment row exists.
+function buildAssetFilter({ search, category, status, branch, assigned }) {
   const clauses = [];
   const params = [];
 
@@ -39,11 +42,28 @@ function buildAssetFilter({ search, category, status, branch }) {
     clauses.push(`l.branch = $${params.length}`);
   }
 
+  if (assigned === 'yes') {
+    clauses.push('ag.id IS NOT NULL');
+  } else if (assigned === 'no') {
+    clauses.push('ag.id IS NULL');
+  }
+
   return {
     where: clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '',
     params,
   };
 }
+
+// Whitelisted so the sort key can never reach the query as raw input.
+// "newest" uses id rather than a timestamp: the asset table has no created_at,
+// and a serial primary key is insertion order.
+const SORTS = {
+  code: 'a.asset_code ASC',
+  newest: 'a.id DESC',
+  oldest: 'a.id ASC',
+  value: 'a.purchase_price DESC NULLS LAST',
+  description: 'a.description ASC',
+};
 
 // GET /assets — paginated list.
 //
@@ -75,7 +95,7 @@ async function getAllAssets(req, res) {
               e.name AS employee_name, l.branch, l.physical_location
        ${ASSET_JOINS}
        ${where}
-       ORDER BY a.asset_code
+       ORDER BY ${SORTS[req.query.sort] || SORTS.code}
        LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
       pageParams
     );
@@ -107,6 +127,30 @@ async function getAllCategories(req, res) {
 // mobile clients don't have to keep their own copies in sync by hand.
 async function getAllConditions(req, res) {
   res.json(ASSET_CONDITIONS);
+}
+
+// GET /assets/filters — everything the filter bar needs, in one request
+// rather than three.
+async function getFilterOptions(req, res) {
+  try {
+    const [categories, branches] = await Promise.all([
+      pool.query('SELECT id, name FROM asset_category ORDER BY name'),
+      pool.query(
+        `SELECT DISTINCT branch FROM location
+         WHERE branch IS NOT NULL AND branch <> ''
+         ORDER BY branch`
+      ),
+    ]);
+    res.json({
+      categories: categories.rows,
+      branches: branches.rows.map((r) => r.branch),
+      statuses: ['In Stock', 'Assigned', 'Disposed', 'Lost'],
+      conditions: ASSET_CONDITIONS,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch filter options' });
+  }
 }
 
 // GET /assets/:asset_code — lookup a single asset by its QR/barcode value (used by the scanner)
@@ -276,8 +320,68 @@ async function createAsset(req, res) {
   }
 }
 
+// PATCH /assets/:asset_code — admin correction of asset details.
+//
+// asset_code is deliberately NOT editable: it's the identity printed on the
+// barcode label stuck to the equipment, and changing it here would silently
+// orphan that label. status is also excluded — it's derived from assignment,
+// disposal and loss actions, so editing it directly would desync it from the
+// assignment table.
+const EDITABLE = [
+  'description', 'asset_category_id', 'serial_number', 'supplier',
+  'purchase_price', 'date_of_purchase', 'condition',
+  'chassis_number', 'engine_number', 'nbv',
+];
+
+async function updateAsset(req, res) {
+  const { asset_code } = req.params;
+  const updates = {};
+
+  for (const field of EDITABLE) {
+    if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+      updates[field] = req.body[field] === '' ? null : req.body[field];
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'No editable fields supplied' });
+  }
+
+  if (updates.description !== undefined && !String(updates.description || '').trim()) {
+    return res.status(400).json({ error: 'description cannot be empty' });
+  }
+
+  if (updates.condition && !isValidCondition(updates.condition)) {
+    return res.status(400).json({
+      error: `condition must be one of: ${ASSET_CONDITIONS.join(', ')}`,
+    });
+  }
+
+  try {
+    const cols = Object.keys(updates);
+    const assignments = cols.map((col, i) => `${col} = $${i + 1}`).join(', ');
+    const values = cols.map((col) => updates[col]);
+
+    const result = await pool.query(
+      `UPDATE asset SET ${assignments} WHERE asset_code = $${cols.length + 1} RETURNING *`,
+      [...values, asset_code]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update asset' });
+  }
+}
+
 module.exports = {
   getAllAssets,
+  getFilterOptions,
+  updateAsset,
   getAssetByCode,
   createAsset,
   getAllCategories,

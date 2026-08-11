@@ -48,13 +48,31 @@ export async function refreshSession() {
 // GET /assets is paginated and returns { data, total, limit, offset } rather
 // than a bare array. Passing limit/offset through lets the list page properly
 // instead of silently showing the first 200 rows.
-export async function fetchAssets({ search, status, limit, offset } = {}) {
+export async function fetchAssets({ search, status, category, branch, assigned, sort, limit, offset } = {}) {
   const params = {};
   if (search) params.search = search;
   if (status) params.status = status;
+  if (category) params.category = category;
+  if (branch) params.branch = branch;
+  if (assigned) params.assigned = assigned;      // 'yes' | 'no'
+  if (sort) params.sort = sort;
   if (limit != null) params.limit = limit;
   if (offset != null) params.offset = offset;
   const res = await api.get('/assets', { params });
+  return res.data;
+}
+
+// Categories, branches, statuses and conditions in one request, so the filter
+// bar doesn't fire four.
+export async function fetchAssetFilters() {
+  const res = await api.get('/assets/filters');
+  return res.data;
+}
+
+// PATCH /assets/:code — admin correction of asset details. asset_code and
+// status are not editable; see the note on the endpoint.
+export async function updateAsset(assetCode, changes) {
+  const res = await api.patch(`/assets/${encodeURIComponent(assetCode)}`, changes);
   return res.data;
 }
 

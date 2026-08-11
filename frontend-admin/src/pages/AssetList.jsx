@@ -1,33 +1,44 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchAssets } from '../api';
+import { fetchAssets, fetchAssetFilters } from '../api';
 import { colors } from '../theme';
 
 const PAGE_SIZE = 50;
 
-// Only these are ever written by the backend (assignment, check-in, disposal,
-// loss). "Under Repair" used to be offered here and could never match a row.
-const STATUS_OPTIONS = ['In Stock', 'Assigned', 'Disposed', 'Lost'];
+const SORTS = [
+  { value: 'code', label: 'Asset code' },
+  { value: 'newest', label: 'Recently added' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'value', label: 'Highest value' },
+  { value: 'description', label: 'Description A–Z' },
+];
+
+const EMPTY = { search: '', status: '', category: '', branch: '', assigned: '', sort: 'code' };
 
 export default function AssetList({ onSelectAsset, initialStatus = '' }) {
   const [assets, setAssets] = useState([]);
   const [total, setTotal] = useState(0);
+  const [options, setOptions] = useState({ categories: [], branches: [], statuses: [] });
+
+  // `search` is what's in the box; `filters.search` is what's been submitted.
+  // Without that split every keystroke would refire the request and reset paging.
   const [search, setSearch] = useState('');
-  const [activeSearch, setActiveSearch] = useState('');
-  const [status, setStatus] = useState(initialStatus);
+  const [filters, setFilters] = useState({ ...EMPTY, status: initialStatus });
+
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
-  const loadAssets = useCallback(async () => {
+  useEffect(() => {
+    fetchAssetFilters()
+      .then(setOptions)
+      .catch(() => { /* filter bar degrades to text search; not worth an error banner */ });
+  }, []);
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const result = await fetchAssets({
-        search: activeSearch,
-        status,
-        limit: PAGE_SIZE,
-        offset: 0,
-      });
+      const result = await fetchAssets({ ...filters, limit: PAGE_SIZE, offset: 0 });
       setAssets(result.data);
       setTotal(result.total);
     } catch (err) {
@@ -38,25 +49,18 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
     } finally {
       setLoading(false);
     }
-  }, [activeSearch, status]);
+  }, [filters]);
 
   useEffect(() => {
-    // Fetch-on-mount. The rule objects because loadAssets sets loading state
-    // before its first await, but that's inherent to showing a spinner while
-    // fetching — there's no external system to synchronise with here.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadAssets();
-  }, [loadAssets]);
+    load();
+  }, [load]);
+
   const loadMore = async () => {
     setLoadingMore(true);
     setError('');
     try {
-      const result = await fetchAssets({
-        search: activeSearch,
-        status,
-        limit: PAGE_SIZE,
-        offset: assets.length,
-      });
+      const result = await fetchAssets({ ...filters, limit: PAGE_SIZE, offset: assets.length });
       setAssets((prev) => [...prev, ...result.data]);
       setTotal(result.total);
     } catch (err) {
@@ -67,37 +71,67 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
     }
   };
 
-  const handleSearchSubmit = (e) => {
+  const set = (key) => (e) => setFilters((f) => ({ ...f, [key]: e.target.value }));
+
+  const submitSearch = (e) => {
     e.preventDefault();
-    setActiveSearch(search.trim());
+    setFilters((f) => ({ ...f, search: search.trim() }));
   };
+
+  const clearAll = () => {
+    setSearch('');
+    setFilters({ ...EMPTY });
+  };
+
+  const activeCount = Object.entries(filters)
+    .filter(([k, v]) => k !== 'sort' && v).length;
 
   const hasMore = assets.length < total;
 
   return (
-    <div style={{ padding: 30, maxWidth: 1100, margin: '0 auto' }}>
-      <h1 style={{ color: colors.white }}>Vision Fund Assets</h1>
-      <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+    <div style={{ padding: 30, maxWidth: 1200, margin: '0 auto' }}>
+      <h1 style={{ color: colors.white, marginBottom: 16 }}>Vision Fund Assets</h1>
+
+      <form onSubmit={submitSearch} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
         <input
           style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid ' + colors.border }}
           placeholder="Search by code or description..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select
-          style={{ padding: 10, borderRadius: 6, border: '1px solid ' + colors.border }}
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-        <button type="submit" style={{ padding: '10px 20px', background: colors.primary, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-          Search
-        </button>
+        <button type="submit" style={primaryButton}>Search</button>
       </form>
+
+      <div style={filterBar}>
+        <Select value={filters.status} onChange={set('status')} label="All statuses">
+          {options.statuses.map((v) => <option key={v} value={v}>{v}</option>)}
+        </Select>
+
+        <Select value={filters.category} onChange={set('category')} label="All categories">
+          {options.categories.map((cat) => (
+            <option key={cat.id} value={cat.name}>{cat.name}</option>
+          ))}
+        </Select>
+
+        <Select value={filters.branch} onChange={set('branch')} label="All branches">
+          {options.branches.map((b) => <option key={b} value={b}>{b}</option>)}
+        </Select>
+
+        <Select value={filters.assigned} onChange={set('assigned')} label="Assigned or not">
+          <option value="yes">Assigned to someone</option>
+          <option value="no">Not assigned</option>
+        </Select>
+
+        <Select value={filters.sort} onChange={set('sort')}>
+          {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </Select>
+
+        {activeCount > 0 && (
+          <button onClick={clearAll} style={clearButton}>
+            Clear {activeCount} filter{activeCount === 1 ? '' : 's'}
+          </button>
+        )}
+      </div>
 
       {error && <div style={errorStyle}>{error}</div>}
 
@@ -134,7 +168,13 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
             </tbody>
           </table>
 
-          {assets.length === 0 && !error && <p style={{ color: colors.white }}>No assets found.</p>}
+          {assets.length === 0 && !error && (
+            <p style={{ color: colors.white }}>
+              {activeCount > 0
+                ? 'No assets match these filters.'
+                : 'No assets found.'}
+            </p>
+          )}
 
           {assets.length > 0 && (
             <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -154,21 +194,36 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
   );
 }
 
+function Select({ value, onChange, label, children }) {
+  return (
+    <select value={value} onChange={onChange} style={selectStyle}>
+      {label && <option value="">{label}</option>}
+      {children}
+    </select>
+  );
+}
+
 const cellStyle = { padding: '10px 12px', fontSize: 14 };
+const primaryButton = {
+  padding: '10px 20px', background: colors.primary, color: colors.white,
+  border: 'none', borderRadius: 6, cursor: 'pointer',
+};
+const filterBar = {
+  display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 20,
+};
+const selectStyle = {
+  padding: '8px 10px', borderRadius: 6, border: '1px solid ' + colors.border,
+  fontSize: 13, background: colors.white, cursor: 'pointer',
+};
+const clearButton = {
+  padding: '8px 14px', borderRadius: 6, border: 'none',
+  background: colors.black, color: colors.white, fontSize: 13, cursor: 'pointer',
+};
 const loadMoreStyle = {
-  padding: '8px 16px',
-  background: colors.primary,
-  color: colors.white,
-  border: 'none',
-  borderRadius: 6,
-  cursor: 'pointer',
-  fontSize: 13,
+  padding: '8px 16px', background: colors.primary, color: colors.white,
+  border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13,
 };
 const errorStyle = {
-  background: '#fdecea',
-  color: colors.danger,
-  padding: '10px 12px',
-  borderRadius: 6,
-  fontSize: 13,
-  marginBottom: 16,
+  background: '#fdecea', color: colors.danger, padding: '10px 12px',
+  borderRadius: 6, fontSize: 13, marginBottom: 16,
 };
