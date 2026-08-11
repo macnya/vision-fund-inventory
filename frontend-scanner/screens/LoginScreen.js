@@ -50,6 +50,7 @@ export default function LoginScreen({ onLoginSuccess }) {
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
+        placeholderTextColor="#98A1AE"
       />
       <TextInput
         style={styles.input}
@@ -57,6 +58,7 @@ export default function LoginScreen({ onLoginSuccess }) {
         value={password}
         onChangeText={setPassword}
         secureTextEntry
+        placeholderTextColor="#98A1AE"
       />
 
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
@@ -71,8 +73,11 @@ const styles = StyleSheet.create({
   logo: { width: 220, height: 57, alignSelf: 'center', marginBottom: 24 },
   title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 40 },
   input: {
-    borderWidth: 1, borderColor: '#ccc', borderRadius: 8,
-    padding: 12, marginBottom: 16, fontSize: 16,
+    borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14, fontSize: 16,
+    // Explicit, because Android tints input text for the system theme and the
+    // card behind it is hardcoded white — white on white is invisible.
+    color: '#14181F', backgroundColor: '#FFFFFF',
   },
   button: {
     backgroundColor: '#1e3a5f', borderRadius: 8, padding: 16, alignItems: 'center',

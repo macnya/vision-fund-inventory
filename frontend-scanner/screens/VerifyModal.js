@@ -123,8 +123,9 @@ const styles = StyleSheet.create({
   optionText: { color: '#333', fontWeight: '500' },
   optionTextSelected: { color: '#fff', fontWeight: '600' },
   remarksInput: {
-    borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12,
-    minHeight: 90, textAlignVertical: 'top', color: '#333',
+    borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 10, padding: 12,
+    minHeight: 90, textAlignVertical: 'top',
+    color: '#14181F', backgroundColor: '#FFFFFF', fontSize: 15,
   },
   hint: { fontSize: 12, color: '#999', marginTop: 10 },
   buttonRow: { flexDirection: 'row', marginTop: 20, gap: 12 },

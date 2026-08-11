@@ -6,6 +6,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { fetchCategories, createAsset } from '../api';
 import { ASSET_CONDITIONS, DEFAULT_CONDITION } from '../constants/assetConditions';
+import { c, mono, conditionColor } from '../theme';
 
 export default function CreateAssetScreen({ scannedCode, onCreated, onCancel }) {
   const [categories, setCategories] = useState([]);
@@ -23,13 +24,13 @@ export default function CreateAssetScreen({ scannedCode, onCreated, onCancel }) 
         setCategories(cats);
         if (cats.length > 0) setCategoryId(String(cats[0].id));
       })
-      .catch(() => Alert.alert('Error', 'Could not load categories.'))
+      .catch(() => Alert.alert('Could not load categories', 'Check your connection and try again.'))
       .finally(() => setLoadingCategories(false));
   }, []);
 
   const handleSubmit = async () => {
     if (!description.trim()) {
-      Alert.alert('Missing info', 'Please enter a description.');
+      Alert.alert('Description needed', 'Enter what this asset is, for example "HP EliteBook 840".');
       return;
     }
     setLoading(true);
@@ -38,90 +39,187 @@ export default function CreateAssetScreen({ scannedCode, onCreated, onCancel }) 
         asset_code: scannedCode,
         description: description.trim(),
         asset_category_id: categoryId ? parseInt(categoryId, 10) : null,
-        serial_number: serialNumber || null,
-        supplier: supplier || null,
+        serial_number: serialNumber.trim() || null,
+        supplier: supplier.trim() || null,
         condition,
       });
       onCreated(asset);
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to create asset.');
+      Alert.alert('Could not create this asset', err.response?.data?.error || 'Try again once you have a signal.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <Text style={styles.title}>Add New Asset</Text>
-      <Text style={styles.codeLabel}>Scanned Code</Text>
-      <View style={styles.codeBox}>
-        <Text style={styles.codeText}>{scannedCode}</Text>
+    <View style={s.screen}>
+      <View style={s.header}>
+        <TouchableOpacity onPress={onCancel} style={s.backHit} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Text style={s.backChevron}>‹</Text>
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>New asset</Text>
       </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Description *"
-        value={description}
-        onChangeText={setDescription}
-      />
-
-      {loadingCategories ? (
-        <ActivityIndicator style={{ marginBottom: 12 }} />
-      ) : (
-        <View style={styles.pickerWrapper}>
-          <Picker selectedValue={categoryId} onValueChange={setCategoryId}>
-            {categories.map((c) => (
-              <Picker.Item key={c.id} label={c.name} value={String(c.id)} />
-            ))}
-          </Picker>
+      <ScrollView style={s.scroll} contentContainerStyle={s.scrollInner} keyboardShouldPersistTaps="handled">
+        <View style={s.codeCard}>
+          <Text style={s.eyebrow}>Scanned code</Text>
+          <Text style={s.code}>{scannedCode}</Text>
+          <Text style={s.codeNote}>This barcode isn't in the register yet. Fill in what you can see.</Text>
         </View>
-      )}
 
-      <TextInput
-        style={styles.input}
-        placeholder="Serial Number"
-        value={serialNumber}
-        onChangeText={setSerialNumber}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Supplier"
-        value={supplier}
-        onChangeText={setSupplier}
-      />
+        <Field label="What is it?" required>
+          <TextInput
+            style={s.input}
+            placeholder="e.g. HP EliteBook 840 laptop"
+            placeholderTextColor={c.inkFaint}
+            value={description}
+            onChangeText={setDescription}
+          />
+        </Field>
 
-      {/* Driven by the shared list rather than hardcoded. This picker used to
-          offer "Fair", which the backend rejects and no verification could
-          ever produce — the last place that value could still be created. */}
-      <View style={styles.pickerWrapper}>
-        <Picker selectedValue={condition} onValueChange={setCondition}>
-          {ASSET_CONDITIONS.map((c) => (
-            <Picker.Item key={c} label={c} value={c} />
-          ))}
-        </Picker>
+        <Field label="Category">
+          {loadingCategories ? (
+            <View style={s.pickerBox}><ActivityIndicator style={{ margin: 12 }} /></View>
+          ) : (
+            <View style={s.pickerBox}>
+              <Picker
+                selectedValue={categoryId}
+                onValueChange={setCategoryId}
+                dropdownIconColor={c.inkSoft}
+                style={s.picker}
+              >
+                {categories.map((cat) => (
+                  <Picker.Item key={cat.id} label={cat.name} value={String(cat.id)} color={c.ink} />
+                ))}
+              </Picker>
+            </View>
+          )}
+        </Field>
+
+        <Field label="Serial number" hint="Printed on the device, often under a barcode">
+          <TextInput
+            style={[s.input, s.inputMono]}
+            placeholder="Leave blank if none"
+            placeholderTextColor={c.inkFaint}
+            value={serialNumber}
+            onChangeText={setSerialNumber}
+            autoCapitalize="characters"
+          />
+        </Field>
+
+        <Field label="Supplier">
+          <TextInput
+            style={s.input}
+            placeholder="Who it was bought from"
+            placeholderTextColor={c.inkFaint}
+            value={supplier}
+            onChangeText={setSupplier}
+          />
+        </Field>
+
+        <Field label="Condition" hint="What you can see right now">
+          <View style={s.conditionRow}>
+            {ASSET_CONDITIONS.map((option) => {
+              const selected = condition === option;
+              return (
+                <TouchableOpacity
+                  key={option}
+                  onPress={() => setCondition(option)}
+                  style={[
+                    s.conditionChip,
+                    selected && { borderColor: conditionColor(option), backgroundColor: conditionColor(option) },
+                  ]}
+                >
+                  <Text style={[s.conditionText, selected && { color: c.paper }]}>{option}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Field>
+      </ScrollView>
+
+      <View style={s.actions}>
+        <TouchableOpacity style={s.primary} onPress={handleSubmit} disabled={loading}>
+          {loading ? <ActivityIndicator color={c.paper} /> : <Text style={s.primaryText}>Create asset</Text>}
+        </TouchableOpacity>
       </View>
-
-      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Create Asset</Text>}
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-        <Text style={styles.cancelButtonText}>Cancel</Text>
-      </TouchableOpacity>
-    </ScrollView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 16, color: '#1a1a1a' },
-  codeLabel: { fontSize: 12, color: '#777', marginBottom: 4 },
-  codeBox: { backgroundColor: '#f4f4f4', borderRadius: 8, padding: 12, marginBottom: 16 },
-  codeText: { fontSize: 16, fontWeight: '600', color: '#1a1a1a' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 16 },
-  pickerWrapper: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 14 },
-  submitButton: { backgroundColor: '#E8720C', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
-  submitButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  cancelButton: { padding: 14, alignItems: 'center' },
-  cancelButtonText: { color: '#999', fontSize: 14 },
+function Field({ label, hint, required, children }) {
+  return (
+    <View style={s.field}>
+      <Text style={s.label}>
+        {label}
+        {required ? <Text style={{ color: c.orange }}> *</Text> : null}
+      </Text>
+      {children}
+      {hint ? <Text style={s.hint}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: c.surface },
+
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 8, paddingVertical: 6,
+    backgroundColor: c.paper, borderBottomWidth: 1, borderBottomColor: c.rule,
+  },
+  backHit: { paddingHorizontal: 10, paddingVertical: 2 },
+  backChevron: { fontSize: 32, lineHeight: 34, color: c.navy, fontWeight: '300' },
+  headerTitle: { fontSize: 13, fontWeight: '600', color: c.inkSoft, letterSpacing: 0.4 },
+
+  scroll: { flex: 1 },
+  scrollInner: { padding: 16, paddingBottom: 28 },
+
+  codeCard: {
+    backgroundColor: c.paper, borderRadius: 14, borderWidth: 1, borderColor: c.rule,
+    paddingVertical: 18, paddingHorizontal: 18, marginBottom: 18, alignItems: 'center',
+  },
+  eyebrow: {
+    fontSize: 10, letterSpacing: 1.6, textTransform: 'uppercase',
+    color: c.inkFaint, fontWeight: '700', marginBottom: 6,
+  },
+  code: { fontFamily: mono, fontSize: 26, letterSpacing: 1.4, color: c.ink, fontWeight: '700' },
+  codeNote: { fontSize: 12.5, color: c.inkSoft, textAlign: 'center', marginTop: 10, lineHeight: 18 },
+
+  field: { marginBottom: 18 },
+  label: { fontSize: 13, fontWeight: '600', color: c.ink, marginBottom: 7 },
+  hint: { fontSize: 11.5, color: c.inkFaint, marginTop: 6 },
+
+  // color and backgroundColor are explicit on purpose: Android tints input text
+  // for the system theme, and against a hardcoded white card that made typed
+  // characters invisible.
+  input: {
+    borderWidth: 1, borderColor: c.rule, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 13, fontSize: 15,
+    color: c.ink, backgroundColor: c.paper,
+  },
+  inputMono: { fontFamily: mono, letterSpacing: 0.4 },
+
+  pickerBox: {
+    borderWidth: 1, borderColor: c.rule, borderRadius: 10,
+    backgroundColor: c.paper, overflow: 'hidden',
+  },
+  picker: { color: c.ink },
+
+  conditionRow: { flexDirection: 'row', gap: 8 },
+  conditionChip: {
+    flex: 1, borderWidth: 1.5, borderColor: c.rule, borderRadius: 10,
+    paddingVertical: 11, paddingHorizontal: 6, alignItems: 'center', backgroundColor: c.paper,
+  },
+  conditionText: { fontSize: 12.5, fontWeight: '600', color: c.inkSoft, textAlign: 'center' },
+
+  actions: {
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 18,
+    backgroundColor: c.paper, borderTopWidth: 1, borderTopColor: c.rule,
+  },
+  primary: {
+    backgroundColor: c.orange, borderRadius: 12,
+    paddingVertical: 15, alignItems: 'center', justifyContent: 'center',
+  },
+  primaryText: { color: c.paper, fontSize: 15, fontWeight: '700' },
 });

@@ -1,28 +1,39 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Image } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Modal,
+  TextInput, Alert, ActivityIndicator, Image,
+} from 'react-native';
 import { getAssetByCodeOffline } from '../offline/offlineApi';
+import { c, mono } from '../theme';
 
 export default function HomeScreen({ userName, onScan, onSearchResult, onViewActivity, onLogout }) {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchCode, setSearchCode] = useState('');
   const [searching, setSearching] = useState(false);
 
+  const closeSearch = () => {
+    setShowSearchModal(false);
+    setSearchCode('');
+  };
+
   const handleManualSearch = async () => {
     if (!searchCode.trim()) return;
     setSearching(true);
     try {
       const { data, fromCache } = await getAssetByCodeOffline(searchCode.trim());
-      setShowSearchModal(false);
-      setSearchCode('');
+      closeSearch();
       if (fromCache) {
-        Alert.alert('Offline', 'Showing last saved data for this asset.', [{ text: 'OK' }]);
+        Alert.alert('Offline copy', 'Showing the last data saved on this phone.', [{ text: 'OK' }]);
       }
       onSearchResult(data);
     } catch (err) {
       if (err.response?.status === 404) {
-        Alert.alert('Not found', `No asset found with code "${searchCode}"`);
+        Alert.alert('Not in the register', `No asset with the code ${searchCode.trim()}.`);
       } else {
-        Alert.alert('Error', "This asset has never been loaded on this device, so it can't be shown offline.");
+        Alert.alert(
+          'Not available offline',
+          "This asset hasn't been opened on this phone before, so there's no saved copy to show."
+        );
       }
     } finally {
       setSearching(false);
@@ -30,47 +41,61 @@ export default function HomeScreen({ userName, onScan, onSearchResult, onViewAct
   };
 
   return (
-    <View style={styles.container}>
-      <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-      <Text style={styles.greeting}>Hello, {userName}</Text>
-      <Text style={styles.subtitle}>Vision Fund Asset Scanner</Text>
+    <View style={s.screen}>
+      <View style={s.body}>
+        <Image source={require('../assets/logo.png')} style={s.logo} resizeMode="contain" />
 
-      <TouchableOpacity style={styles.primaryButton} onPress={onScan}>
-        <Text style={styles.primaryButtonText}>📷  Scan Barcode</Text>
+        <Text style={s.greeting}>{userName ? `Hello, ${userName.split(' ')[0]}` : 'Hello'}</Text>
+        <Text style={s.subtitle}>Asset Scanner</Text>
+
+        <TouchableOpacity style={s.primary} onPress={onScan} activeOpacity={0.85}>
+          <Text style={s.primaryText}>Scan a barcode</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.secondary} onPress={() => setShowSearchModal(true)} activeOpacity={0.7}>
+          <Text style={s.secondaryText}>Search by asset code</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.secondary} onPress={onViewActivity} activeOpacity={0.7}>
+          <Text style={s.secondaryText}>Recent activity</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity style={s.logout} onPress={onLogout}>
+        <Text style={s.logoutText}>Log out</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.secondaryButton} onPress={() => setShowSearchModal(true)}>
-        <Text style={styles.secondaryButtonText}>🔍  Search by Asset Code</Text>
-      </TouchableOpacity>
+      <Modal
+        visible={showSearchModal}
+        animationType="slide"
+        transparent
+        onRequestClose={closeSearch}   /* Android back closes the sheet */
+      >
+        <View style={s.overlay}>
+          <View style={s.sheet}>
+            <Text style={s.sheetTitle}>Search by asset code</Text>
+            <Text style={s.sheetHint}>Type the code printed on the label.</Text>
 
-      <TouchableOpacity style={styles.secondaryButton} onPress={onViewActivity}>
-        <Text style={styles.secondaryButtonText}>🕒  Recent Activity</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-        <Text style={styles.logoutButtonText}>Log Out</Text>
-      </TouchableOpacity>
-
-      <Modal visible={showSearchModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Search by Asset Code</Text>
             <TextInput
-              style={styles.modalInput}
+              style={s.input}
               placeholder="e.g. KDT000487"
+              placeholderTextColor={c.inkFaint}
               value={searchCode}
               onChangeText={setSearchCode}
               autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="search"
+              onSubmitEditing={handleManualSearch}
             />
-            <View style={styles.modalButtonRow}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => { setShowSearchModal(false); setSearchCode(''); }}
-              >
-                <Text>Cancel</Text>
+
+            <View style={s.sheetActions}>
+              <TouchableOpacity style={s.cancel} onPress={closeSearch}>
+                <Text style={s.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirmButton} onPress={handleManualSearch} disabled={searching}>
-                {searching ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff' }}>Search</Text>}
+              <TouchableOpacity style={s.confirm} onPress={handleManualSearch} disabled={searching}>
+                {searching
+                  ? <ActivityIndicator color={c.paper} />
+                  : <Text style={s.confirmText}>Search</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -80,22 +105,59 @@ export default function HomeScreen({ userName, onScan, onSearchResult, onViewAct
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center', backgroundColor: '#fff' },
-  logo: { width: 180, height: 47, alignSelf: 'center', marginBottom: 20 },
-  greeting: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', color: '#1a1a1a' },
-  subtitle: { fontSize: 14, color: '#777', textAlign: 'center', marginBottom: 40 },
-  primaryButton: { backgroundColor: '#E8720C', borderRadius: 10, padding: 18, alignItems: 'center', marginBottom: 14 },
-  primaryButtonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
-  secondaryButton: { backgroundColor: '#f4f4f4', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 14 },
-  secondaryButtonText: { color: '#1a1a1a', fontSize: 16 },
-  logoutButton: { marginTop: 20, alignItems: 'center' },
-  logoutButtonText: { color: '#c0392b', fontSize: 14 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
-  modalBox: { backgroundColor: '#fff', borderRadius: 12, padding: 24 },
-  modalTitle: { fontSize: 18, fontWeight: '600', marginBottom: 16 },
-  modalInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 16 },
-  modalButtonRow: { flexDirection: 'row', gap: 10 },
-  modalCancelButton: { flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#eee', alignItems: 'center' },
-  modalConfirmButton: { flex: 1, padding: 14, borderRadius: 8, backgroundColor: '#E8720C', alignItems: 'center' },
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: c.paper, paddingHorizontal: 24 },
+  body: { flex: 1, justifyContent: 'center' },
+
+  logo: { width: 190, height: 49, alignSelf: 'center', marginBottom: 28 },
+  greeting: { fontSize: 26, fontWeight: '700', textAlign: 'center', color: c.ink },
+  subtitle: {
+    fontSize: 11, letterSpacing: 1.8, textTransform: 'uppercase',
+    color: c.inkFaint, textAlign: 'center', fontWeight: '700', marginTop: 6, marginBottom: 38,
+  },
+
+  primary: {
+    backgroundColor: c.orange, borderRadius: 12,
+    paddingVertical: 18, alignItems: 'center', marginBottom: 12,
+  },
+  primaryText: { color: c.paper, fontSize: 17, fontWeight: '700' },
+
+  secondary: {
+    backgroundColor: c.paper, borderRadius: 12, borderWidth: 1.5, borderColor: c.rule,
+    paddingVertical: 16, alignItems: 'center', marginBottom: 12,
+  },
+  secondaryText: { color: c.ink, fontSize: 15, fontWeight: '600' },
+
+  logout: { alignItems: 'center', paddingVertical: 18 },
+  logoutText: { color: c.inkSoft, fontSize: 14, fontWeight: '500' },
+
+  overlay: { flex: 1, backgroundColor: 'rgba(20,24,31,0.55)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: c.paper, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 24, paddingBottom: 30,
+  },
+  sheetTitle: { fontSize: 19, fontWeight: '700', color: c.ink },
+  sheetHint: { fontSize: 13, color: c.inkSoft, marginTop: 4, marginBottom: 16 },
+
+  // color and backgroundColor are explicit: Android tints input text for the
+  // system theme, and against a hardcoded white sheet that made typed
+  // characters invisible.
+  input: {
+    borderWidth: 1, borderColor: c.rule, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 14, fontSize: 17,
+    fontFamily: mono, letterSpacing: 0.5,
+    color: c.ink, backgroundColor: c.paper,
+  },
+
+  sheetActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  cancel: {
+    flex: 1, paddingVertical: 15, borderRadius: 12,
+    borderWidth: 1.5, borderColor: c.rule, alignItems: 'center', backgroundColor: c.paper,
+  },
+  cancelText: { color: c.inkSoft, fontSize: 15, fontWeight: '600' },
+  confirm: {
+    flex: 1, paddingVertical: 15, borderRadius: 12,
+    backgroundColor: c.orange, alignItems: 'center', justifyContent: 'center',
+  },
+  confirmText: { color: c.paper, fontSize: 15, fontWeight: '700' },
 });
