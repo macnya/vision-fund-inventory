@@ -316,9 +316,10 @@ function Event({ event, last }) {
         {event.remarks ? <Text style={s.eventRemarks}>{event.remarks}</Text> : null}
 
         {event.map_url ? (
-          <TouchableOpacity onPress={() => Linking.openURL(event.map_url)}>
-            <Text style={s.eventLink}>Map ›</Text>
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onBack} style={s.backButton} activeOpacity={0.6}>
+          <Text style={s.backChevron}>‹</Text>
+          <Text style={s.backLabel}>Back</Text>
+        </TouchableOpacity>
         ) : null}
       </View>
     </View>

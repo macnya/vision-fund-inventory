@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { SafeAreaView, StyleSheet } from 'react-native';
+import { SafeAreaView, StyleSheet, BackHandler } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './screens/LoginScreen';
 import HomeScreen from './screens/HomeScreen';
@@ -26,6 +26,7 @@ export default function App() {
   useEffect(() => {
     wakeServer();
   }, []);
+
   useEffect(() => {
     let unsubscribeSync;
     try {
@@ -84,6 +85,22 @@ export default function App() {
     setScannedCode('');
     setScreen('home');
   };
+
+  // Wire the phone's own back gesture/button to the same navigation as the
+  // on-screen control. Without this, Android's back closed the whole app from
+  // any screen, which is why the small chevron was the only way out.
+  useEffect(() => {
+    const onBack = () => {
+      if (screen === 'login' || screen === 'home') {
+        return false;      // let Android do its thing: leave the app
+      }
+      handleBackToHome();
+      return true;         // handled — don't exit
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+    return () => sub.remove();
+  }, [screen]);
 
   const handleRefreshAsset = async () => {
     if (!assetData?.asset?.asset_code) return;
