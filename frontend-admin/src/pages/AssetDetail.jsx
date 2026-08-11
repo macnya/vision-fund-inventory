@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchAssetDetail, fetchAssetHistory, markAssetDisposed, markAssetLost, updateAsset, fetchAssetFilters } from '../api';
 import { colors } from '../theme';
 import { API_BASE_URL } from '../config';
@@ -39,7 +39,9 @@ export default function AssetDetail({ assetCode, onBack }) {
   const [options, setOptions] = useState({ categories: [], conditions: [] });
   const admin = isAdmin();
 
-  const loadData = async () => {
+  // useCallback so the effect below can depend on it honestly, and so saveEdit
+  // gets a stable reference rather than a new function on every render.
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const detail = await fetchAssetDetail(assetCode);
@@ -51,13 +53,12 @@ export default function AssetDetail({ assetCode, onBack }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [assetCode]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
-  }, [assetCode]);
-
+  }, [loadData]);
   useEffect(() => {
     if (!admin) return;
     fetchAssetFilters().then(setOptions).catch(() => {});
