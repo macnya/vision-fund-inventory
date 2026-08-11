@@ -1,4 +1,10 @@
 export const colors = {
+  // Text that sits on the page background. `white` is for text ON a coloured
+  // fill — using it for headings is what made them invisible once the panel
+  // stopped being dark.
+  ink: '#14181f',
+  inkSoft: '#5a6472',
+
   primary: '#E8720C',      // Vision Fund orange
   primaryDark: '#B85A0A',  // darker orange for hover/active states
   black: '#1a1a1a',

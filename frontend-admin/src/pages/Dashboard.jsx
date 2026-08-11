@@ -34,7 +34,7 @@ export default function Dashboard({ onNavigate }) {
 
   return (
     <div style={{ padding: 30, maxWidth: 1100, margin: '0 auto' }}>
-      <h1 style={{ color: colors.white }}>Vision Fund Dashboard</h1>
+      <h1 style={{ color: colors.ink }}>Vision Fund Dashboard</h1>
 
       <div style={kpiRowStyle}>
         <KpiCard label="Total Assets" value={stats.totalAssets} color={colors.primary} onClick={() => onNavigate('list', '')} />

@@ -90,7 +90,7 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
 
   return (
     <div style={{ padding: 30, maxWidth: 1200, margin: '0 auto' }}>
-      <h1 style={{ color: colors.white, marginBottom: 16 }}>Vision Fund Assets</h1>
+      <h1 style={{ color: colors.ink, marginBottom: 16 }}>Vision Fund Assets</h1>
 
       <form onSubmit={submitSearch} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
         <input
@@ -136,7 +136,7 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
       {error && <div style={errorStyle}>{error}</div>}
 
       {loading ? (
-        <p style={{ color: colors.white }}>Loading...</p>
+        <p style={{ color: colors.inkSoft }}>Loading...</p>
       ) : (
         <>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -169,7 +169,7 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
           </table>
 
           {assets.length === 0 && !error && (
-            <p style={{ color: colors.white }}>
+            <p style={{ color: colors.inkSoft }}>
               {activeCount > 0
                 ? 'No assets match these filters.'
                 : 'No assets found.'}

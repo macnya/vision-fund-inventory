@@ -48,7 +48,7 @@ export default function UserManagement({ currentUserId, onCreateNew }) {  const 
   return (
   <div style={{ padding: 30, maxWidth: 900, margin: '0 auto' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <h1 style={{ color: colors.white }}>IT Staff Management</h1>
+      <h1 style={{ color: colors.ink }}>IT Staff Management</h1>
       <button onClick={onCreateNew} style={newButtonStyle}>+ New Staff</button>
     </div>
 

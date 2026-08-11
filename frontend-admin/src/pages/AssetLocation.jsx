@@ -107,7 +107,7 @@ export default function AssetLocations({ onSelectAsset }) {
     <div style={{ padding: 30, maxWidth: 1200, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
-          <h1 style={{ color: colors.white, margin: 0 }}>Asset Locations</h1>
+          <h1 style={{ color: colors.ink, margin: 0 }}>Asset Locations</h1>
           <p style={{ color: colors.grayText, margin: '4px 0 0', fontSize: 13 }}>
             {assets.length} asset{assets.length === 1 ? '' : 's'}{' '}
             {verifiedOnly
@@ -125,7 +125,7 @@ export default function AssetLocations({ onSelectAsset }) {
       </div>
 
       <div style={controlRowStyle}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: colors.white }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: colors.ink }}>
           <input
             type="checkbox"
             checked={verifiedOnly}

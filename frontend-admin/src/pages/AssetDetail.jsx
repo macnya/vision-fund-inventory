@@ -171,7 +171,7 @@ export default function AssetDetail({ assetCode, onBack }) {
     <div style={{ padding: 30, maxWidth: 900, margin: '0 auto' }}>
       <button onClick={onBack} style={backButtonStyle}>Back to list</button>
 
-      <h1 style={{ color: colors.white, marginBottom: 4 }}>{asset.asset_code}</h1>
+      <h1 style={{ color: colors.ink, marginBottom: 4 }}>{asset.asset_code}</h1>
       <button onClick={handlePrintBarcode} style={barcodeLinkStyle}>View / Print Barcode</button>
       <p style={{ color: '#555', marginTop: 8 }}>{asset.description}</p>
 

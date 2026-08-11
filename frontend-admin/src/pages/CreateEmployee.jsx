@@ -31,7 +31,7 @@ export default function CreateEmployee({ onBack, onCreated }) {
   return (
     <div style={{ padding: 30, maxWidth: 500, margin: '0 auto' }}>
       <button onClick={onBack} style={backButtonStyle}>← Back</button>
-      <h1 style={{ color: colors.white }}>New Employee</h1>
+      <h1 style={{ color: colors.ink }}>New Employee</h1>
       {error && <p style={{ color: colors.danger }}>{error}</p>}
       <form onSubmit={handleSubmit}>
         <input style={inputStyle} placeholder="Full name *" value={name} onChange={(e) => setName(e.target.value)} />

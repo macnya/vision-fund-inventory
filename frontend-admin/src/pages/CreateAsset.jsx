@@ -54,7 +54,7 @@ export default function CreateAsset({ onBack, onCreated }) {
   return (
     <div style={{ padding: 30, maxWidth: 550, margin: '0 auto' }}>
       <button onClick={onBack} style={backButtonStyle}>← Back</button>
-      <h1 style={{ color: colors.white }}>Add New Asset</h1>
+      <h1 style={{ color: colors.ink }}>Add New Asset</h1>
       {error && <p style={{ color: colors.danger }}>{error}</p>}
       <form onSubmit={handleSubmit}>
         <input style={inputStyle} placeholder="Asset Code * (e.g. KDT003000)" value={assetCode} onChange={(e) => setAssetCode(e.target.value)} />
