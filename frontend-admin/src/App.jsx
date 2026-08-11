@@ -11,6 +11,7 @@ import CreateUser from './pages/CreateUser';
 import CreateAsset from './pages/CreateAsset';
 import VerificationReport from './pages/VerificationReport';
 import AssetLocations from './pages/AssetLocation';
+import ChangePassword from './pages/ChangePassword';
 import logo from './assets/logo.png';
 
 // Accounts created before the role rename still carry 'Admin', which the
@@ -36,6 +37,7 @@ function App() {
   const [view, setView] = useState('dashboard');
   const [selectedAssetCode, setSelectedAssetCode] = useState(null);
   const [listInitialStatus, setListInitialStatus] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -50,6 +52,23 @@ function App() {
   };
 
   if (!user) return <Login onLoginSuccess={setUser} />;
+
+  // A temporary password stands between them and the app until it's replaced.
+  // The backend doesn't refuse other endpoints on this flag — it's a prompt,
+  // not a lock — but there's no route past this screen in the UI.
+  if (user.must_change_password) {
+    return <ChangePassword user={user} forced onDone={setUser} />;
+  }
+
+  if (changingPassword) {
+    return (
+      <ChangePassword
+        user={user}
+        onDone={(u) => { setUser(u); setChangingPassword(false); }}
+        onCancel={() => setChangingPassword(false)}
+      />
+    );
+  }
 
   const openAsset = (code) => { setSelectedAssetCode(code); setView('detail'); };
 
@@ -142,7 +161,9 @@ function App() {
           </nav>
 
           <div className="topbar-user">
-            <span className="topbar-name">{user.name}</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => setChangingPassword(true)}>
+              {user.name}
+            </button>
             <button className="btn btn-secondary btn-sm" onClick={handleLogout}>Log out</button>
           </div>
         </div>

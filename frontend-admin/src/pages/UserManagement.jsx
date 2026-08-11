@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchUsers, updateUserRole, deleteUser } from '../api';
+import { fetchUsers, updateUserRole, deleteUser, resetUserPassword } from '../api';
 
 const ROLES = ['IT Admin', 'IT Officer', 'Branch Manager', 'Auditor'];
 
@@ -41,6 +41,31 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
       loadUsers();
     } catch (err) {
       setNotice({ kind: 'error', text: err.response?.data?.error || 'Failed to update role.' });
+    }
+  };
+
+  const handleReset = async (id, name) => {
+    const temp = prompt(
+      `Temporary password for ${name} (at least 8 characters).\n\n` +
+      `They will be asked to choose their own the next time they sign in, and ` +
+      `this will end any session they currently have open.`
+    );
+    if (temp === null) return;                       // cancelled
+    if (temp.trim().length < 8) {
+      setNotice({ kind: 'error', text: 'That password is too short — 8 characters minimum.' });
+      return;
+    }
+
+    setNotice(null);
+    try {
+      await resetUserPassword(id, temp.trim());
+      setNotice({
+        kind: 'ok',
+        text: `Temporary password set for ${name}. Give it to them directly, not over a group chat.`,
+      });
+      loadUsers();
+    } catch (err) {
+      setNotice({ kind: 'error', text: err.response?.data?.error || 'Failed to reset this password.' });
     }
   };
 
@@ -87,6 +112,7 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Joined</th>
+                <th>Password</th>
                 <th aria-label="Actions"></th>
               </tr>
             </thead>
@@ -111,13 +137,31 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
                       </select>
                     </td>
                     <td data-label="Joined">{new Date(u.created_at).toLocaleDateString()}</td>
-                    <td data-label="">
-                      {/* Deleting your own account would lock you out mid-session. */}
-                      {!isSelf && (
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(u.id, u.name)}>
-                          Delete
-                        </button>
+
+                    <td data-label="Password">
+                      {u.must_change_password ? (
+                        <span className="badge badge-warn">Temporary</span>
+                      ) : u.password_changed_at ? (
+                        <span className="cell-sub">
+                          set {new Date(u.password_changed_at).toLocaleDateString()}
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
                       )}
+                    </td>
+
+                    <td data-label="">
+                      <div className="page-actions">
+                        <button className="btn btn-secondary btn-sm" onClick={() => handleReset(u.id, u.name)}>
+                          Reset password
+                        </button>
+                        {/* Deleting your own account would lock you out mid-session. */}
+                        {!isSelf && (
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(u.id, u.name)}>
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

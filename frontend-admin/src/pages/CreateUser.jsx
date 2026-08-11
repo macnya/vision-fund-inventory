@@ -22,8 +22,8 @@ export default function CreateUser({ onBack, onCreated }) {
       setError('Name, email and password are all required.');
       return;
     }
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (form.password.length < 8) {
+      setError('Password must be at least 8 characters.');
       return;
     }
     setLoading(true);
@@ -78,7 +78,7 @@ export default function CreateUser({ onBack, onCreated }) {
           </div>
 
           <div className="field">
-            <label htmlFor="u-password">Password *</label>
+            <label htmlFor="u-password">Temporary password *</label>
             <input
               id="u-password"
               type="password"
@@ -86,7 +86,10 @@ export default function CreateUser({ onBack, onCreated }) {
               onChange={set('password')}
               autoComplete="new-password"
             />
-            <p className="field-hint">At least 6 characters. Ask them to change it after first sign-in.</p>
+            <p className="field-hint">
+              At least 8 characters. This is temporary — they'll be asked to choose
+              their own the first time they sign in.
+            </p>
           </div>
 
           <div className="field">
