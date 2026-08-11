@@ -1,20 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchAssets, fetchAssetFilters } from '../api';
-import { colors } from '../theme';
 
 const PAGE_SIZE = 50;
 
 const SORTS = [
-  { value: 'code', label: 'Asset code' },
-  { value: 'newest', label: 'Recently added' },
-  { value: 'oldest', label: 'Oldest first' },
-  { value: 'value', label: 'Highest value' },
+  { value: 'code',        label: 'Asset code' },
+  { value: 'newest',      label: 'Recently added' },
+  { value: 'oldest',      label: 'Oldest first' },
+  { value: 'value',       label: 'Highest value' },
   { value: 'description', label: 'Description A–Z' },
 ];
 
 const EMPTY = { search: '', status: '', category: '', branch: '', assigned: '', sort: 'code' };
 
-export default function AssetList({ onSelectAsset, initialStatus = '' }) {
+// Status carries meaning, so it carries colour: green in stock, navy assigned,
+// red disposed, amber lost.
+const STATUS_BADGE = {
+  'In Stock': 'badge-good',
+  'Assigned': 'badge-navy',
+  'Disposed': 'badge-bad',
+  'Lost':     'badge-warn',
+};
+
+export default function AssetList({
+  onSelectAsset, initialStatus = '',
+  canCreate, canManage, onNewAsset, onNewEmployee, onNewLocation,
+}) {
   const [assets, setAssets] = useState([]);
   const [total, setTotal] = useState(0);
   const [options, setOptions] = useState({ categories: [], branches: [], statuses: [] });
@@ -83,147 +94,123 @@ export default function AssetList({ onSelectAsset, initialStatus = '' }) {
     setFilters({ ...EMPTY });
   };
 
-  const activeCount = Object.entries(filters)
-    .filter(([k, v]) => k !== 'sort' && v).length;
-
+  const activeCount = Object.entries(filters).filter(([k, v]) => k !== 'sort' && v).length;
   const hasMore = assets.length < total;
 
   return (
-    <div style={{ padding: 30, maxWidth: 1200, margin: '0 auto' }}>
-      <h1 style={{ color: colors.ink, marginBottom: 16 }}>Vision Fund Assets</h1>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Assets</h1>
+          <p className="page-sub">
+            {total.toLocaleString()} in the register
+            {activeCount > 0 ? ' matching your filters' : ''}
+          </p>
+        </div>
 
-      <form onSubmit={submitSearch} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+        <div className="page-actions">
+          {canCreate && <button className="btn btn-primary" onClick={onNewAsset}>New asset</button>}
+          {canManage && <button className="btn btn-secondary" onClick={onNewEmployee}>New employee</button>}
+          {canManage && <button className="btn btn-secondary" onClick={onNewLocation}>New location</button>}
+        </div>
+      </div>
+
+      <form className="toolbar-search" onSubmit={submitSearch} style={{ marginBottom: '0.75rem' }}>
         <input
-          style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid ' + colors.border }}
-          placeholder="Search by code or description..."
+          type="search"
+          placeholder="Search by asset code or description…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button type="submit" style={primaryButton}>Search</button>
+        <button type="submit" className="btn btn-primary">Search</button>
       </form>
 
-      <div style={filterBar}>
-        <Select value={filters.status} onChange={set('status')} label="All statuses">
+      <div className="filters" style={{ marginBottom: '1.25rem' }}>
+        <select value={filters.status} onChange={set('status')}>
+          <option value="">All statuses</option>
           {options.statuses.map((v) => <option key={v} value={v}>{v}</option>)}
-        </Select>
+        </select>
 
-        <Select value={filters.category} onChange={set('category')} label="All categories">
-          {options.categories.map((cat) => (
-            <option key={cat.id} value={cat.name}>{cat.name}</option>
-          ))}
-        </Select>
+        <select value={filters.category} onChange={set('category')}>
+          <option value="">All categories</option>
+          {options.categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
 
-        <Select value={filters.branch} onChange={set('branch')} label="All branches">
+        <select value={filters.branch} onChange={set('branch')}>
+          <option value="">All branches</option>
           {options.branches.map((b) => <option key={b} value={b}>{b}</option>)}
-        </Select>
+        </select>
 
-        <Select value={filters.assigned} onChange={set('assigned')} label="Assigned or not">
+        <select value={filters.assigned} onChange={set('assigned')}>
+          <option value="">Assigned or not</option>
           <option value="yes">Assigned to someone</option>
           <option value="no">Not assigned</option>
-        </Select>
+        </select>
 
-        <Select value={filters.sort} onChange={set('sort')}>
+        <select value={filters.sort} onChange={set('sort')}>
           {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </Select>
+        </select>
 
         {activeCount > 0 && (
-          <button onClick={clearAll} style={clearButton}>
+          <button className="btn btn-ghost btn-sm" onClick={clearAll}>
             Clear {activeCount} filter{activeCount === 1 ? '' : 's'}
           </button>
         )}
       </div>
 
-      {error && <div style={errorStyle}>{error}</div>}
+      {error && <div className="notice notice-error">{error}</div>}
 
       {loading ? (
-        <p style={{ color: colors.inkSoft }}>Loading...</p>
+        <p className="empty">Loading assets…</p>
+      ) : assets.length === 0 ? (
+        <div className="card">
+          <p className="empty">
+            {activeCount > 0
+              ? 'No assets match these filters. Try clearing one.'
+              : 'No assets in the register yet.'}
+          </p>
+        </div>
       ) : (
         <>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: colors.gray, textAlign: 'left' }}>
-                <th style={cellStyle}>Asset Code</th>
-                <th style={cellStyle}>Description</th>
-                <th style={cellStyle}>Category</th>
-                <th style={cellStyle}>Status</th>
-                <th style={cellStyle}>Assigned To</th>
-                <th style={cellStyle}>Branch</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.map((a) => (
-                <tr
-                  key={a.id}
-                  style={{ cursor: 'pointer', borderBottom: '1px solid #eee' }}
-                  onClick={() => onSelectAsset(a.asset_code)}
-                >
-                  <td style={cellStyle}>{a.asset_code}</td>
-                  <td style={cellStyle}>{a.description}</td>
-                  <td style={cellStyle}>{a.category_name}</td>
-                  <td style={cellStyle}>{a.status}</td>
-                  <td style={cellStyle}>{a.employee_name || '—'}</td>
-                  <td style={cellStyle}>{a.branch || '—'}</td>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Description</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  <th>Assigned to</th>
+                  <th>Branch</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {assets.map((a) => (
+                  <tr key={a.id} className="is-clickable" onClick={() => onSelectAsset(a.asset_code)}>
+                    <td data-label="Code"><span className="code">{a.asset_code}</span></td>
+                    <td data-label="Description">{a.description}</td>
+                    <td data-label="Category">{a.category_name || '—'}</td>
+                    <td data-label="Status">
+                      <span className={`badge ${STATUS_BADGE[a.status] || 'badge-neutral'}`}>{a.status}</span>
+                    </td>
+                    <td data-label="Assigned to">{a.employee_name || '—'}</td>
+                    <td data-label="Branch">{a.branch || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          {assets.length === 0 && !error && (
-            <p style={{ color: colors.inkSoft }}>
-              {activeCount > 0
-                ? 'No assets match these filters.'
-                : 'No assets found.'}
-            </p>
-          )}
-
-          {assets.length > 0 && (
-            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ color: '#bbb', fontSize: 13 }}>
-                Showing {assets.length} of {total}
-              </span>
-              {hasMore && (
-                <button onClick={loadMore} disabled={loadingMore} style={loadMoreStyle}>
-                  {loadingMore ? 'Loading...' : `Load next ${Math.min(PAGE_SIZE, total - assets.length)}`}
-                </button>
-              )}
-            </div>
-          )}
+          <div className="list-foot">
+            <span className="list-count">Showing {assets.length} of {total.toLocaleString()}</span>
+            {hasMore && (
+              <button className="btn btn-secondary btn-sm" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? 'Loading…' : `Load next ${Math.min(PAGE_SIZE, total - assets.length)}`}
+              </button>
+            )}
+          </div>
         </>
       )}
     </div>
   );
 }
-
-function Select({ value, onChange, label, children }) {
-  return (
-    <select value={value} onChange={onChange} style={selectStyle}>
-      {label && <option value="">{label}</option>}
-      {children}
-    </select>
-  );
-}
-
-const cellStyle = { padding: '10px 12px', fontSize: 14 };
-const primaryButton = {
-  padding: '10px 20px', background: colors.primary, color: colors.white,
-  border: 'none', borderRadius: 6, cursor: 'pointer',
-};
-const filterBar = {
-  display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 20,
-};
-const selectStyle = {
-  padding: '8px 10px', borderRadius: 6, border: '1px solid ' + colors.border,
-  fontSize: 13, background: colors.white, cursor: 'pointer',
-};
-const clearButton = {
-  padding: '8px 14px', borderRadius: 6, border: 'none',
-  background: colors.black, color: colors.white, fontSize: 13, cursor: 'pointer',
-};
-const loadMoreStyle = {
-  padding: '8px 16px', background: colors.primary, color: colors.white,
-  border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13,
-};
-const errorStyle = {
-  background: '#fdecea', color: colors.danger, padding: '10px 12px',
-  borderRadius: 6, fontSize: 13, marginBottom: 16,
-};

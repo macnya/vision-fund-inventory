@@ -7,26 +7,41 @@ import AssetDetail from './pages/AssetDetail';
 import CreateEmployee from './pages/CreateEmployee';
 import CreateLocation from './pages/CreateLocation';
 import UserManagement from './pages/UserManagement';
-import logo from './assets/logo.png';
-import { colors } from './theme';
 import CreateUser from './pages/CreateUser';
 import CreateAsset from './pages/CreateAsset';
 import VerificationReport from './pages/VerificationReport';
 import AssetLocations from './pages/AssetLocation';
+import logo from './assets/logo.png';
+
+// Accounts created before the role rename still carry 'Admin', which the
+// backend also accepts — so the UI has to agree or those admins see an empty
+// nav bar.
+function isAdmin(user) {
+  return user?.role === 'IT Admin' || user?.role === 'Admin';
+}
+function canCreateAssets(user) {
+  return isAdmin(user) || user?.role === 'IT Officer';
+}
+
+const TABS = [
+  { key: 'dashboard',     label: 'Dashboard' },
+  { key: 'list',          label: 'Assets' },
+  { key: 'locations',     label: 'Locations' },
+  { key: 'verifications', label: 'Verifications' },
+  { key: 'users',         label: 'IT Staff', adminOnly: true },
+];
 
 function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState('dashboard'); // 'dashboard' | 'list' | 'detail' | 'newEmployee' | 'newLocation' | 'users' | 'verifications' | 'locations'
+  const [view, setView] = useState('dashboard');
   const [selectedAssetCode, setSelectedAssetCode] = useState(null);
   const [listInitialStatus, setListInitialStatus] = useState('');
 
   useEffect(() => {
-  const stored = localStorage.getItem('user');
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  if (stored) setUser(JSON.parse(stored));
-}, []);
-
-  const handleLoginSuccess = (userData) => setUser(userData);
+    const stored = localStorage.getItem('user');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (stored) setUser(JSON.parse(stored));
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -34,79 +49,67 @@ function App() {
     setUser(null);
   };
 
-  if (!user) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
-  }
+  if (!user) return <Login onLoginSuccess={setUser} />;
+
+  const openAsset = (code) => { setSelectedAssetCode(code); setView('detail'); };
 
   let content;
   if (view === 'detail') {
-    content = (
-      <AssetDetail
-        assetCode={selectedAssetCode}
-        onBack={() => setView('list')}
-      />
-    );
+    content = <AssetDetail assetCode={selectedAssetCode} onBack={() => setView('list')} />;
+
   } else if (view === 'newEmployee') {
     content = (
-      <CreateEmployee
-        onBack={() => setView('list')}
-        onCreated={() => { alert('Employee created'); setView('list'); }}
-      />
+      <CreateEmployee onBack={() => setView('list')}
+        onCreated={() => { alert('Employee created'); setView('list'); }} />
     );
+
   } else if (view === 'newLocation') {
     content = (
-      <CreateLocation
+      <CreateLocation onBack={() => setView('list')}
+        onCreated={() => { alert('Location created'); setView('list'); }} />
+    );
+
+  } else if (view === 'users') {
+    content = isAdmin(user)
+      ? <UserManagement currentUserId={user.id} onCreateNew={() => setView('newUser')} />
+      : <AccessDenied />;
+
+  } else if (view === 'newUser') {
+    content = isAdmin(user)
+      ? <CreateUser onBack={() => setView('users')}
+          onCreated={() => { alert('IT staff account created'); setView('users'); }} />
+      : <AccessDenied />;
+
+  } else if (view === 'newAsset') {
+    content = (
+      <CreateAsset
         onBack={() => setView('list')}
-        onCreated={() => { alert('Location created'); setView('list'); }}
+        onCreated={(code) => {
+          alert('Asset created. You can now find it in the list and print its barcode.');
+          openAsset(code);
+        }}
       />
     );
-  } else if (view === 'users') {
-  content = (
-    <UserManagement
-      currentUserId={user.id}
-      onCreateNew={() => setView('newUser')}
-    />
-  );
-} else if (view === 'newUser') {
-  content = (
-    <CreateUser
-      onBack={() => setView('users')}
-      onCreated={() => { alert('IT staff account created'); setView('users'); }}
-    />
-  );
-  } else if (view === 'newAsset') {
-  content = (
-    <CreateAsset
-      onBack={() => setView('list')}
-      onCreated={(code) => {
-        alert('Asset created! You can now find it in the asset list and print its barcode.');
-        setSelectedAssetCode(code);
-        setView('detail');
-      }}
-    />
-  );
+
   } else if (view === 'verifications') {
-  content = <VerificationReport />;
+    content = <VerificationReport />;
+
   } else if (view === 'locations') {
-  content = (
-    <AssetLocations
-      onSelectAsset={(code) => { setSelectedAssetCode(code); setView('detail'); }}
-    />
-  );
-} else if (view === 'list') {
-  content = (
-    <div>
-      <div style={{ display: 'flex', gap: 10, padding: '20px 30px 0' }}>
-        <button style={navButtonStyle} onClick={() => setView('newAsset')}>+ New Asset</button>
-        <button style={navButtonStyle} onClick={() => setView('newEmployee')}>+ New Employee</button>
-        <button style={navButtonStyle} onClick={() => setView('newLocation')}>+ New Location</button>
-      </div>
+    content = <AssetLocations onSelectAsset={openAsset} />;
+
+  } else if (view === 'list') {
+    content = (
       <AssetList
-        onSelectAsset={(code) => { setSelectedAssetCode(code); setView('detail'); }}
+        onSelectAsset={openAsset}
         initialStatus={listInitialStatus}
+        canCreate={canCreateAssets(user)}
+        canManage={isAdmin(user)}
+        onNewAsset={() => setView('newAsset')}
+        onNewEmployee={() => setView('newEmployee')}
+        onNewLocation={() => setView('newLocation')}
       />
-    </div>
-  );
+    );
+
   } else {
     content = (
       <Dashboard
@@ -119,45 +122,48 @@ function App() {
   }
 
   return (
-    <div>
-      <div style={topNavStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <div style={logoBoxStyle}>
-            <img src={logo} alt="Vision Fund" style={{ height: 40, display: 'block' }} />
+    <div className="app">
+      <header className="topbar">
+        <div className="topbar-inner">
+          <div className="brand">
+            <img src={logo} alt="Vision Fund Kenya" />
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button style={tabStyle(view === 'dashboard')} onClick={() => setView('dashboard')}>Dashboard</button>
-            <button style={tabStyle(view === 'list')} onClick={() => setView('list')}>Assets</button>
-            <button style={tabStyle(view === 'locations')} onClick={() => setView('locations')}>Locations</button>
-            <button style={tabStyle(view === 'users')} onClick={() => setView('users')}>IT Staff</button>
-            <button style={tabStyle(view === 'verifications')} onClick={() => setView('verifications')}>Verifications</button>
+
+          <nav className="nav">
+            {TABS.filter((t) => !t.adminOnly || isAdmin(user)).map((t) => (
+              <button
+                key={t.key}
+                className={view === t.key ? 'nav-item is-active' : 'nav-item'}
+                onClick={() => setView(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="topbar-user">
+            <span className="topbar-name">{user.name}</span>
+            <button className="btn btn-secondary btn-sm" onClick={handleLogout}>Log out</button>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 13, color: colors.grayText }}>{user.name}</span>
-          <button style={logoutButtonStyle} onClick={handleLogout}>Log Out</button>
-        </div>
-      </div>
+      </header>
+
       {content}
     </div>
   );
 }
 
-function tabStyle(active) {
-  return {
-    padding: '8px 16px',
-    background: active ? colors.primary : colors.gray,
-    color: active ? colors.white : colors.black,
-    border: 'none',
-    borderRadius: 6,
-    cursor: 'pointer',
-    fontWeight: active ? 600 : 400,
-  };
+function AccessDenied() {
+  return (
+    <div className="page">
+      <div className="card">
+        <div className="card-body">
+          <h2>Not available for your role</h2>
+          <p className="page-sub">Ask an IT Admin if you need access to this section.</p>
+        </div>
+      </div>
+    </div>
+  );
 }
-
-const navButtonStyle = { padding: '8px 16px', background: colors.success, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };
-const topNavStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 30px', borderBottom: '2px solid ' + colors.primary, background: colors.black };
-const logoBoxStyle = { background: colors.white, padding: '6px 12px', borderRadius: 8, display: 'flex', alignItems: 'center' };
-const logoutButtonStyle = { padding: '6px 12px', background: colors.primary, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
 
 export default App;
