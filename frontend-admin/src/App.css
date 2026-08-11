@@ -214,6 +214,24 @@
 }
 .muted { color: var(--ink-faint); font-style: italic; }
 input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
+
+/* --- Table cell detail --------------------------------------------------- */
+.cell-sub { font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.15rem; }
+.cell-corrected {
+  font-size: 0.75rem; color: var(--warn); font-style: italic; margin-top: 0.2rem;
+}
+.table td input, .table td select { min-width: 9rem; }
+
+/* --- Forms --------------------------------------------------------------- */
+.form-page { max-width: 40rem; }
+.form-row { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
+.field:last-child { margin-bottom: 0; }
+input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
+
+@media (max-width: 560px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+
 /* --- Responsive ----------------------------------------------------------
    Below 720px the table collapses to stacked cards. A six-column table on a
    phone is either unreadable or a horizontal-scroll puzzle; each row becomes

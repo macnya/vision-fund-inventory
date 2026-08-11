@@ -1,49 +1,76 @@
 import { useState } from 'react';
 import api from '../api';
-import { colors } from '../theme';
 
 export default function CreateLocation({ onBack, onCreated }) {
-  const [branch, setBranch] = useState('');
-  const [department, setDepartment] = useState('');
-  const [physicalLocation, setPhysicalLocation] = useState('');
+  const [form, setForm] = useState({ branch: '', department: '', physicalLocation: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!branch.trim()) {
+    if (!form.branch.trim()) {
       setError('Branch is required.');
       return;
     }
     setLoading(true);
     try {
-      await api.post('/locations', { branch, department, physical_location: physicalLocation });
+      await api.post('/locations', {
+        branch: form.branch.trim(),
+        department: form.department.trim() || null,
+        physical_location: form.physicalLocation.trim() || null,
+      });
       onCreated();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create location.');
+      setError(err.response?.data?.error || 'Failed to create this location.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ padding: 30, maxWidth: 500, margin: '0 auto' }}>
-      <button onClick={onBack} style={backButtonStyle}>← Back</button>
-      <h1 style={{ color: colors.ink }}>New Location</h1>
-      {error && <p style={{ color: colors.danger }}>{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <input style={inputStyle} placeholder="Branch *" value={branch} onChange={(e) => setBranch(e.target.value)} />
-        <input style={inputStyle} placeholder="Department" value={department} onChange={(e) => setDepartment(e.target.value)} />
-        <input style={inputStyle} placeholder="Physical location (room, desk, etc.)" value={physicalLocation} onChange={(e) => setPhysicalLocation(e.target.value)} />
-        <button type="submit" style={submitStyle} disabled={loading}>
-          {loading ? 'Saving...' : 'Create Location'}
-        </button>
+    <div className="page form-page">
+      <button className="btn btn-ghost" onClick={onBack} style={{ marginBottom: '1rem' }}>‹ Back</button>
+
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">New location</h1>
+          <p className="page-sub">A place an asset can live — a branch, a room, a store.</p>
+        </div>
+      </div>
+
+      {error && <div className="notice notice-error">{error}</div>}
+
+      <form className="card" onSubmit={handleSubmit}>
+        <div className="card-body">
+          <div className="field">
+            <label htmlFor="l-branch">Branch *</label>
+            <input id="l-branch" value={form.branch} onChange={set('branch')} />
+          </div>
+
+          <div className="field">
+            <label htmlFor="l-dept">Department</label>
+            <input id="l-dept" value={form.department} onChange={set('department')} />
+          </div>
+
+          <div className="field">
+            <label htmlFor="l-place">Physical location</label>
+            <input id="l-place" placeholder="e.g. Server room, Reception desk" value={form.physicalLocation} onChange={set('physicalLocation')} />
+            <p className="field-hint">
+              A place, not a person. Assign assets to people through the employee list —
+              putting names here is what made half the location records staff members.
+            </p>
+          </div>
+        </div>
+
+        <div className="card-body" style={{ borderTop: '1px solid var(--rule)' }}>
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? 'Saving…' : 'Create location'}
+          </button>
+        </div>
       </form>
     </div>
   );
 }
-
-const inputStyle = { display: 'block', width: '100%', padding: 10, marginBottom: 12, borderRadius: 6, border: '1px solid ' + colors.border, boxSizing: 'border-box' };
-const submitStyle = { padding: '10px 20px', background: colors.primary, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };
-const backButtonStyle = { marginBottom: 20, padding: '8px 16px', background: colors.gray, border: 'none', borderRadius: 6, cursor: 'pointer' };

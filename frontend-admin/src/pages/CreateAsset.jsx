@@ -1,94 +1,138 @@
 import { useState, useEffect } from 'react';
-import { fetchCategories, createAsset } from '../api';
-import { colors } from '../theme';
+import { createAsset, fetchAssetFilters } from '../api';
 
 export default function CreateAsset({ onBack, onCreated }) {
-  const [categories, setCategories] = useState([]);
-  const [assetCode, setAssetCode] = useState('');
-  const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [serialNumber, setSerialNumber] = useState('');
-  const [datePurchased, setDatePurchased] = useState('');
-  const [purchasePrice, setPurchasePrice] = useState('');
-  const [supplier, setSupplier] = useState('');
-  const [condition, setCondition] = useState('Good');
+  const [options, setOptions] = useState({ categories: [], conditions: [] });
+  const [form, setForm] = useState({
+    assetCode: '', description: '', categoryId: '', serialNumber: '',
+    datePurchased: '', purchasePrice: '', supplier: '', condition: '',
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Conditions come from the backend rather than being hardcoded. This form
+  // used to offer "Fair", which the API rejects with a 400 — the condition
+  // vocabulary is Good / Good with issues / Faulty.
   useEffect(() => {
-    fetchCategories()
-      .then((cats) => {
-        setCategories(cats);
-        if (cats.length > 0) setCategoryId(String(cats[0].id));
+    fetchAssetFilters()
+      .then((o) => {
+        setOptions(o);
+        setForm((f) => ({
+          ...f,
+          categoryId: o.categories[0] ? String(o.categories[0].id) : '',
+          condition: o.conditions[0] || '',
+        }));
       })
-      .catch((err) => console.error(err));
+      .catch(() => setError('Could not load categories. Check your connection.'));
   }, []);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!assetCode.trim() || !description.trim()) {
-      setError('Asset code and description are required.');
+    if (!form.assetCode.trim() || !form.description.trim()) {
+      setError('Asset code and description are both required.');
       return;
     }
     setLoading(true);
     try {
       await createAsset({
-        asset_code: assetCode.trim(),
-        description: description.trim(),
-        asset_category_id: categoryId ? parseInt(categoryId, 10) : null,
-        serial_number: serialNumber || null,
-        date_of_purchase: datePurchased || null,
-        purchase_price: purchasePrice ? parseFloat(purchasePrice) : null,
-        supplier: supplier || null,
-        condition,
+        asset_code: form.assetCode.trim(),
+        description: form.description.trim(),
+        asset_category_id: form.categoryId ? parseInt(form.categoryId, 10) : null,
+        serial_number: form.serialNumber.trim() || null,
+        date_of_purchase: form.datePurchased || null,
+        purchase_price: form.purchasePrice ? parseFloat(form.purchasePrice) : null,
+        supplier: form.supplier.trim() || null,
+        condition: form.condition || null,
       });
-      onCreated(assetCode.trim());
+      onCreated(form.assetCode.trim());
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create asset.');
+      setError(err.response?.data?.error || 'Failed to create this asset.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ padding: 30, maxWidth: 550, margin: '0 auto' }}>
-      <button onClick={onBack} style={backButtonStyle}>← Back</button>
-      <h1 style={{ color: colors.ink }}>Add New Asset</h1>
-      {error && <p style={{ color: colors.danger }}>{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <input style={inputStyle} placeholder="Asset Code * (e.g. KDT003000)" value={assetCode} onChange={(e) => setAssetCode(e.target.value)} />
-        <input style={inputStyle} placeholder="Description *" value={description} onChange={(e) => setDescription(e.target.value)} />
+    <div className="page form-page">
+      <button className="btn btn-ghost" onClick={onBack} style={{ marginBottom: '1rem' }}>‹ Back</button>
 
-        <select style={inputStyle} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">New asset</h1>
+          <p className="page-sub">Adds a record to the register. Print its barcode afterwards.</p>
+        </div>
+      </div>
 
-        <input style={inputStyle} placeholder="Serial Number" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} />
+      {error && <div className="notice notice-error">{error}</div>}
 
-        <label style={labelStyle}>Purchase Date</label>
-        <input style={inputStyle} type="date" value={datePurchased} onChange={(e) => setDatePurchased(e.target.value)} />
+      <form className="card" onSubmit={handleSubmit}>
+        <div className="card-body">
+          <div className="field">
+            <label htmlFor="a-code">Asset code *</label>
+            <input
+              id="a-code"
+              className="is-mono"
+              placeholder="e.g. KDT003000"
+              value={form.assetCode}
+              onChange={set('assetCode')}
+              autoCapitalize="characters"
+            />
+            <p className="field-hint">Must match the barcode label you attach. Cannot be changed later.</p>
+          </div>
 
-        <input style={inputStyle} placeholder="Purchase Price" type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
-        <input style={inputStyle} placeholder="Supplier" value={supplier} onChange={(e) => setSupplier(e.target.value)} />
+          <div className="field">
+            <label htmlFor="a-desc">Description *</label>
+            <input id="a-desc" placeholder="e.g. HP EliteBook 840 laptop" value={form.description} onChange={set('description')} />
+          </div>
 
-        <select style={inputStyle} value={condition} onChange={(e) => setCondition(e.target.value)}>
-          <option value="Good">Good</option>
-          <option value="Fair">Fair</option>
-          <option value="Faulty">Faulty</option>
-        </select>
+          <div className="field">
+            <label htmlFor="a-cat">Category</label>
+            <select id="a-cat" value={form.categoryId} onChange={set('categoryId')}>
+              <option value="">— None —</option>
+              {options.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
 
-        <button type="submit" style={submitStyle} disabled={loading}>
-          {loading ? 'Creating...' : 'Create Asset'}
-        </button>
+          <div className="field">
+            <label htmlFor="a-serial">Serial number</label>
+            <input id="a-serial" className="is-mono" value={form.serialNumber} onChange={set('serialNumber')} autoCapitalize="characters" />
+          </div>
+
+          <div className="form-row">
+            <div className="field">
+              <label htmlFor="a-date">Date of purchase</label>
+              <input id="a-date" type="date" value={form.datePurchased} onChange={set('datePurchased')} />
+            </div>
+            <div className="field">
+              <label htmlFor="a-price">Purchase price</label>
+              <input id="a-price" type="number" step="0.01" placeholder="KES" value={form.purchasePrice} onChange={set('purchasePrice')} />
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="a-supplier">Supplier</label>
+            <input id="a-supplier" value={form.supplier} onChange={set('supplier')} />
+          </div>
+
+          <div className="field">
+            <label htmlFor="a-condition">Condition</label>
+            <select id="a-condition" value={form.condition} onChange={set('condition')}>
+              <option value="">Not yet verified</option>
+              {options.conditions.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <p className="field-hint">Leave as not verified unless you have physically inspected it.</p>
+          </div>
+        </div>
+
+        <div className="card-body" style={{ borderTop: '1px solid var(--rule)' }}>
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? 'Creating…' : 'Create asset'}
+          </button>
+        </div>
       </form>
     </div>
   );
 }
-
-const labelStyle = { display: 'block', fontSize: 12, color: colors.grayText, marginBottom: 4 };
-const inputStyle = { display: 'block', width: '100%', padding: 10, marginBottom: 12, borderRadius: 6, border: '1px solid ' + colors.border, boxSizing: 'border-box' };
-const submitStyle = { padding: '10px 20px', background: colors.primary, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };
-const backButtonStyle = { marginBottom: 20, padding: '8px 16px', background: colors.gray, border: 'none', borderRadius: 6, cursor: 'pointer' };

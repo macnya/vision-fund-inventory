@@ -1,103 +1,131 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchUsers, updateUserRole, deleteUser } from '../api';
-import { colors } from '../theme';
 
 const ROLES = ['IT Admin', 'IT Officer', 'Branch Manager', 'Auditor'];
 
-export default function UserManagement({ currentUserId, onCreateNew }) {  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+// What each role can actually do, so whoever is granting access isn't guessing.
+const ROLE_NOTE = {
+  'IT Admin':       'Full access, including editing the register and managing staff.',
+  'IT Officer':     'Scans, assigns and verifies assets in the field.',
+  'Branch Manager': 'Read-only.',
+  'Auditor':        'Read-only.',
+};
 
-  const loadUsers = async () => {
+export default function UserManagement({ currentUserId, onCreateNew }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState(null);   // { kind, text }
+
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchUsers();
-      setUsers(data);
+      setUsers(await fetchUsers());
     } catch (err) {
       console.error(err);
+      setNotice({ kind: 'error', text: 'Could not load staff accounts.' });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  loadUsers();
-}, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadUsers();
+  }, [loadUsers]);
 
-  const handleRoleChange = async (id, newRole) => {
+  const handleRoleChange = async (id, name, newRole) => {
+    setNotice(null);
     try {
       await updateUserRole(id, newRole);
+      setNotice({ kind: 'ok', text: `${name} is now ${newRole}.` });
       loadUsers();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to update role.');
+      setNotice({ kind: 'error', text: err.response?.data?.error || 'Failed to update role.' });
     }
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm('Delete user "' + name + '"? This cannot be undone.')) return;
+    if (!window.confirm(`Delete the account for ${name}? This cannot be undone.`)) return;
+    setNotice(null);
     try {
       await deleteUser(id);
+      setNotice({ kind: 'ok', text: `${name}'s account was deleted.` });
       loadUsers();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to delete user.');
+      setNotice({ kind: 'error', text: err.response?.data?.error || 'Failed to delete this account.' });
     }
   };
 
-  if (loading) return <div style={{ padding: 30 }}>Loading users...</div>;
-
   return (
-  <div style={{ padding: 30, maxWidth: 900, margin: '0 auto' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <h1 style={{ color: colors.ink }}>IT Staff Management</h1>
-      <button onClick={onCreateNew} style={newButtonStyle}>+ New Staff</button>
-    </div>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">IT staff</h1>
+          <p className="page-sub">
+            {loading ? 'Loading…' : `${users.length} account${users.length === 1 ? '' : 's'} with access to the register`}
+          </p>
+        </div>
+        <div className="page-actions">
+          <button className="btn btn-primary" onClick={onCreateNew}>New staff account</button>
+        </div>
+      </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 20 }}>
-        <thead>
-          <tr style={{ textAlign: 'left', background: colors.gray }}>
-            <th style={cellStyle}>Name</th>
-            <th style={cellStyle}>Email</th>
-            <th style={cellStyle}>Role</th>
-            <th style={cellStyle}>Joined</th>
-            <th style={cellStyle}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => {
-            const isSelf = u.id === currentUserId;
-            return (
-              <tr key={u.id} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={cellStyle}>{u.name}{isSelf ? ' (you)' : ''}</td>
-                <td style={cellStyle}>{u.email}</td>
-                <td style={cellStyle}>
-                  <select
-                    value={ROLES.includes(u.role) ? u.role : 'IT Admin'}
-                    onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                    style={selectStyle}
-                  >
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                </td>
-                <td style={cellStyle}>{new Date(u.created_at).toLocaleDateString()}</td>
-                <td style={cellStyle}>
-                  {!isSelf && (
-                    <button onClick={() => handleDelete(u.id, u.name)} style={deleteButtonStyle}>
-                      Delete
-                    </button>
-                  )}
-                </td>
+      {notice && (
+        <div className={notice.kind === 'ok' ? 'notice notice-ok' : 'notice notice-error'}>{notice.text}</div>
+      )}
+
+      {loading ? (
+        <p className="empty">Loading staff accounts…</p>
+      ) : users.length === 0 ? (
+        <div className="card"><p className="empty">No staff accounts yet.</p></div>
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Joined</th>
+                <th aria-label="Actions"></th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {users.map((u) => {
+                const isSelf = u.id === currentUserId;
+                const role = ROLES.includes(u.role) ? u.role : 'IT Admin';
+                return (
+                  <tr key={u.id}>
+                    <td data-label="Name">
+                      {u.name}
+                      {isSelf && <span className="badge badge-neutral" style={{ marginLeft: '0.5rem' }}>you</span>}
+                    </td>
+                    <td data-label="Email">{u.email}</td>
+                    <td data-label="Role">
+                      <select
+                        value={role}
+                        onChange={(e) => handleRoleChange(u.id, u.name, e.target.value)}
+                        title={ROLE_NOTE[role]}
+                      >
+                        {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </td>
+                    <td data-label="Joined">{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td data-label="">
+                      {/* Deleting your own account would lock you out mid-session. */}
+                      {!isSelf && (
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(u.id, u.name)}>
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
-
-const cellStyle = { padding: '10px 12px', fontSize: 14 };
-const selectStyle = { padding: '6px 10px', borderRadius: 6, border: '1px solid ' + colors.border };
-const deleteButtonStyle = { padding: '6px 12px', background: colors.danger, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 };
-const newButtonStyle = { padding: '10px 16px', background: colors.success, color: colors.white, border: 'none', borderRadius: 6, cursor: 'pointer' };

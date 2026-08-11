@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import api from '../api';
-import { colors } from '../theme';
 import logo from '../assets/logo.png';
 
 export default function Login({ onLoginSuccess }) {
@@ -23,90 +22,54 @@ export default function Login({ onLoginSuccess }) {
       localStorage.setItem('user', JSON.stringify(user));
       onLoginSuccess(user);
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed. Check your credentials.');
+      setError(err.response?.data?.error || 'Login failed. Check your email and password.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={wrapperStyle}>
-      <form onSubmit={handleSubmit} style={formStyle}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-          <img src={logo} alt="Vision Fund" style={{ height: 50 }} />
+    <div className="login">
+      <form className="login-card" onSubmit={handleSubmit}>
+        <img src={logo} alt="Vision Fund Kenya" className="login-logo" />
+
+        <h2 style={{ textAlign: 'center', marginBottom: '0.35rem' }}>Asset Register</h2>
+        <p className="page-sub" style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          Sign in with your IT staff account
+        </p>
+
+        {error && <div className="notice notice-error">{error}</div>}
+
+        <div className="field">
+          <label htmlFor="login-email">Email</label>
+          <input
+            id="login-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            required
+          />
         </div>
-        <h2 style={{ textAlign: 'center', marginBottom: 24, color: colors.black }}>IT Staff Login</h2>
 
-        {error && <div style={errorStyle}>{error}</div>}
+        <div className="field">
+          <label htmlFor="login-password">Password</label>
+          <input
+            id="login-password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+        </div>
 
-        <label style={labelStyle}>Email</label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoCapitalize="none"
-          autoCorrect="off"
-          required
-          style={inputStyle}
-        />
-
-        <label style={labelStyle}>Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          style={inputStyle}
-        />
-
-        <button type="submit" disabled={loading} style={buttonStyle}>
-          {loading ? 'Logging in...' : 'Log In'}
+        <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', marginTop: '0.5rem' }}>
+          {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
     </div>
   );
 }
-
-const wrapperStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: '100vh',
-  background: colors.gray,
-};
-const formStyle = {
-  background: colors.white,
-  padding: '32px 36px',
-  borderRadius: 10,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-  width: 340,
-};
-const labelStyle = { display: 'block', fontSize: 13, marginBottom: 6, color: colors.grayText };
-const inputStyle = {
-  width: '100%',
-  padding: '10px 12px',
-  marginBottom: 16,
-  border: '1px solid #ddd',
-  borderRadius: 6,
-  fontSize: 14,
-  boxSizing: 'border-box',
-};
-const buttonStyle = {
-  width: '100%',
-  padding: '12px',
-  background: colors.primary,
-  color: colors.white,
-  border: 'none',
-  borderRadius: 6,
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-const errorStyle = {
-  background: '#fdecea',
-  color: colors.danger,
-  padding: '10px 12px',
-  borderRadius: 6,
-  fontSize: 13,
-  marginBottom: 16,
-};
