@@ -1,111 +1,139 @@
+/* ---------------------------------------------------------------------------
+   Vision Fund Asset Register — foundations
+
+   This replaces the Vite starter stylesheet, which was still in place: purple
+   accent, a fixed 1126px #root, centre-aligned text, and a
+   prefers-color-scheme:dark block that flipped the whole panel dark. Combined
+   with color-scheme:light dark, form controls followed the OS theme and
+   rendered white text on the white backgrounds the components set — which is
+   why inputs looked empty.
+
+   The register is a daytime, desk-bound, data-dense tool. It is light by
+   design, and says so, rather than inheriting whatever the OS prefers.
+--------------------------------------------------------------------------- */
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* Ink is cooler than pure black so it sits calmly beside the brand orange. */
+  --ink:        #14181f;
+  --ink-soft:   #5a6472;
+  --ink-faint:  #98a1ae;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --paper:      #ffffff;
+  --surface:    #f6f7f9;
+  --surface-2:  #eef0f4;
+  --rule:       #e2e6ec;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  --orange:     #e8720c;   /* VisionFund accent — sparing, never a large fill */
+  --orange-ink: #b85a0a;
+  --orange-bg:  #fdf1e6;
+  --navy:       #1e3a5f;
+  --navy-bg:    #eaeef4;
+
+  --good:       #16794c;
+  --good-bg:    #e8f4ee;
+  --warn:       #b26a00;
+  --warn-bg:    #fdf3e3;
+  --bad:        #c0392b;
+  --bad-bg:     #fdecea;
+
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Asset codes are typed, printed and scanned — they're set in mono
+     wherever they appear, here and in the scanner. */
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --r-sm: 6px;
+  --r:    10px;
+  --r-lg: 14px;
+
+  --shadow-sm: 0 1px 2px rgba(20, 24, 31, 0.05);
+  --shadow:    0 1px 3px rgba(20, 24, 31, 0.08), 0 1px 2px rgba(20, 24, 31, 0.04);
+  --shadow-lg: 0 10px 24px rgba(20, 24, 31, 0.10), 0 2px 6px rgba(20, 24, 31, 0.05);
+
+  /* Declared, not inherited. The panel has one light design. */
+  color-scheme: light;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  text-rendering: optimizeLegibility;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
+  background: var(--surface);
+  color: var(--ink);
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+#root { min-height: 100svh; }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
+h1, h2, h3, h4 {
   margin: 0;
+  font-weight: 650;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 1rem; }
+p  { margin: 0; }
+
+a { color: var(--navy); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* --- Form controls -------------------------------------------------------
+   Every property that the browser would otherwise theme is set explicitly.
+   The previous stylesheet let the OS decide, which is how typed characters
+   ended up invisible.
+------------------------------------------------------------------------- */
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: 0.9375rem;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+input[type='text'],
+input[type='search'],
+input[type='number'],
+input[type='date'],
+input[type='email'],
+input[type='password'],
+select,
+textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--paper);
+  color: var(--ink);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+input::placeholder, textarea::placeholder { color: var(--ink-faint); }
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px var(--orange-bg);
 }
+
+select {
+  appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235a6472' stroke-width='2.5' stroke-linecap='round'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 1rem;
+  cursor: pointer;
+}
+
+button { cursor: pointer; border: none; background: none; color: inherit; }
+button:disabled { opacity: 0.55; cursor: default; }
+
+::selection { background: var(--orange-bg); color: var(--orange-ink); }
+
+/* Visible focus for keyboard users, invisible for mouse users. */
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
