@@ -21,7 +21,7 @@ const TABS = [
   { key: 'list',          label: 'Assets' },
   { key: 'locations',     label: 'Locations' },
   { key: 'verifications', label: 'Verifications' },
-  { key: 'users',         label: 'IT Staff', adminOnly: true },
+  { key: 'users',         label: 'Staff accounts', adminOnly: true },
 ];
 
 function App() {

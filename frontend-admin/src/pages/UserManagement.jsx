@@ -147,7 +147,7 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1 className="page-title">IT staff</h1>
+          <h1 className="page-title">Staff accounts</h1>
           <p className="page-sub">
             {loading
               ? 'Loading…'
