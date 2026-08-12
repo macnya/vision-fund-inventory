@@ -12,6 +12,7 @@ import CreateAsset from './pages/CreateAsset';
 import VerificationReport from './pages/VerificationReport';
 import AssetLocations from './pages/AssetLocation';
 import ChangePassword from './pages/ChangePassword';
+import { refreshSession } from './api';
 import logo from './assets/logo.png';
 
 // Accounts created before the role rename still carry 'Admin', which the
@@ -41,8 +42,21 @@ function App() {
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
+    if (!stored) return;
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (stored) setUser(JSON.parse(stored));
+    setUser(JSON.parse(stored));
+
+    // The cached copy can be stale — a role change or a forced password reset
+    // happens in the database, not in this browser. Refreshing on load also
+    // trades the stored token for a fresh 8h one, so a session started in the
+    // morning doesn't expire mid-afternoon.
+    refreshSession()
+      .then((freshUser) => setUser(freshUser))
+      .catch(() => {
+        // Offline, or the token has already expired — the 401 interceptor in
+        // api.js handles that case by clearing storage and reloading.
+      });
   }, []);
 
   const handleLogout = () => {

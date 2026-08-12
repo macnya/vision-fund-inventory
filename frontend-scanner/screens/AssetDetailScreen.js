@@ -100,8 +100,9 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
   return (
     <View style={s.screen}>
       <View style={s.header}>
-        <TouchableOpacity onPress={onBack} style={s.backHit} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <TouchableOpacity onPress={onBack} style={s.backButton} activeOpacity={0.6}>
           <Text style={s.backChevron}>‹</Text>
+          <Text style={s.backLabel}>Back</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>Asset</Text>
       </View>
@@ -316,10 +317,9 @@ function Event({ event, last }) {
         {event.remarks ? <Text style={s.eventRemarks}>{event.remarks}</Text> : null}
 
         {event.map_url ? (
-          <TouchableOpacity onPress={onBack} style={s.backButton} activeOpacity={0.6}>
-          <Text style={s.backChevron}>‹</Text>
-          <Text style={s.backLabel}>Back</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL(event.map_url)}>
+            <Text style={s.eventLink}>Map ›</Text>
+          </TouchableOpacity>
         ) : null}
       </View>
     </View>
@@ -331,11 +331,16 @@ const s = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 8, paddingVertical: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
     backgroundColor: c.paper, borderBottomWidth: 1, borderBottomColor: c.rule,
   },
-  backHit: { paddingHorizontal: 10, paddingVertical: 2 },
-  backChevron: { fontSize: 32, lineHeight: 34, color: c.navy, fontWeight: '300' },
+  // ~90x44 tap target. A bare chevron was too small to hit reliably.
+  backButton: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingLeft: 6, paddingRight: 14, paddingVertical: 10,
+  },
+  backChevron: { fontSize: 30, lineHeight: 32, color: c.navy, fontWeight: '300', marginRight: 2 },
+  backLabel: { fontSize: 16, color: c.navy, fontWeight: '600' },
   headerTitle: { fontSize: 13, fontWeight: '600', color: c.inkSoft, letterSpacing: 0.4 },
 
   scroll: { flex: 1 },

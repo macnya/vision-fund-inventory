@@ -2,7 +2,7 @@
   "expo": {
     "name": "Vision Fund Scanner",
     "slug": "vision-fund-scanner",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "ke.co.visionfundkenya.scanner",
-      "versionCode": 2,
+      "versionCode": 4,
       "userInterfaceStyle": "light",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
