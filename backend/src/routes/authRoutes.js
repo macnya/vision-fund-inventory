@@ -17,8 +17,7 @@ const {
   requireAdmin,
 } = require('../middleware/authMiddleware');
 
-const { loginLimiter } = require('../middleware/rateLimiter');
-
+const { loginLimiter, changePasswordLimiter } = require('../middleware/rateLimiter');
 
 // Public route
 router.post('/login', loginLimiter, login);
@@ -29,8 +28,10 @@ router.post('/refresh', verifyToken, refreshToken);
 // Any authenticated user can change their OWN password. Not admin-gated on
 // purpose: an officer forced to change a temporary password is not an admin,
 // and the endpoint verifies their current password rather than their role.
-// Rate limited because it accepts a password guess.
-router.post('/change-password', loginLimiter, verifyToken, changePassword);
+//
+// verifyToken runs BEFORE the limiter so the limiter can key on who they are
+// rather than which office they're sitting in.
+router.post('/change-password', verifyToken, changePasswordLimiter, changePassword);
 
 
 // Admin protected routes
