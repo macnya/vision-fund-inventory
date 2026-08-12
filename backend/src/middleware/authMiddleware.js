@@ -1,23 +1,25 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 
-// Canonical role names used across the app.
-//
-// BRANCH_ADMIN was "Branch Manager". The rename reflects what the role does:
-// administers the assets at one branch, as opposed to IT Admin who administers
-// the whole register.
+// Names have changed twice. "Branch Manager" became "Branch Administrator" —
+// the role administers one branch's assets, as opposed to IT Admin who
+// administers the whole register. "IT Officer" became "Administration
+// Officer", since the people doing the scanning are administration staff
+// rather than IT.
 const ROLES = {
   ADMIN: 'IT Admin',
-  OFFICER: 'IT Officer',
+  OFFICER: 'Administration Officer',
   BRANCH_ADMIN: 'Branch Administrator',
   AUDITOR: 'Auditor',
 };
 
 // Accounts predating a rename still carry the old value. Both are accepted so
-// nobody is locked out between the migration and the data being updated.
+// nobody is locked out between the deploy and the data being updated — and so
+// a token issued before the rename keeps working.
 const LEGACY_ROLES = {
   'Admin': ROLES.ADMIN,
   'Branch Manager': ROLES.BRANCH_ADMIN,
+  'IT Officer': ROLES.OFFICER,
 };
 
 function canonicalRole(role) {

@@ -1,11 +1,10 @@
-// Mirrors ROLES in backend/src/middleware/authMiddleware.js.
-//
-// 'Branch Manager' was renamed to 'Branch Administrator'. Accounts created
-// before the rename still carry the old value, and the backend accepts both,
-// so the UI has to as well or those users would see an empty nav bar.
+// Two renames so far: 'Branch Manager' -> 'Branch Administrator', and
+// 'IT Officer' -> 'Administration Officer'. Accounts created before either
+// still carry the old value, and the backend accepts both, so the UI has to
+// as well or those users would see an empty nav bar.
 export const ROLES = {
   ADMIN: 'IT Admin',
-  OFFICER: 'IT Officer',
+  OFFICER: 'Administration Officer',
   BRANCH_ADMIN: 'Branch Administrator',
   AUDITOR: 'Auditor',
 };
@@ -13,6 +12,7 @@ export const ROLES = {
 const LEGACY = {
   'Admin': ROLES.ADMIN,
   'Branch Manager': ROLES.BRANCH_ADMIN,
+  'IT Officer': ROLES.OFFICER,
 };
 
 export function canonicalRole(role) {

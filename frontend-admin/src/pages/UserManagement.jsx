@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchUsers, updateUserRole, deleteUser, resetUserPassword, fetchAssetFilters } from '../api';
 import { ALL_ROLES, ROLE_NOTE, ROLES, canonicalRole } from '../roles';
 
@@ -7,6 +7,7 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(null);   // { kind, text }
+  const [filters, setFilters] = useState({ q: '', role: '', branch: '' });
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -25,6 +26,47 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
     loadUsers();
     fetchAssetFilters().then((o) => setBranches(o.branches || [])).catch(() => {});
   }, [loadUsers]);
+
+  // Counts come from the unfiltered list, so the number beside each role stays
+  // put while you click between them.
+  const roleCounts = useMemo(() => {
+    const counts = {};
+    users.forEach((u) => {
+      const r = canonicalRole(u.role);
+      counts[r] = (counts[r] || 0) + 1;
+    });
+    return counts;
+  }, [users]);
+
+  const scopedCount = useMemo(
+    () => users.filter((u) => canonicalRole(u.role) === ROLES.BRANCH_ADMIN).length,
+    [users]
+  );
+
+  // Filtering happens here rather than server-side: the staff list is a few
+  // dozen rows, so a round trip per keystroke would cost more than it saves.
+  const visible = useMemo(() => {
+    const q = filters.q.trim().toLowerCase();
+    return users.filter((u) => {
+      const role = canonicalRole(u.role);
+      const scoped = role === ROLES.BRANCH_ADMIN;
+
+      if (filters.role && role !== filters.role) return false;
+
+      if (filters.branch === '__unscoped') {
+        if (scoped) return false;
+      } else if (filters.branch === '__none') {
+        if (!(scoped && !u.branch)) return false;
+      } else if (filters.branch && u.branch !== filters.branch) {
+        return false;
+      }
+
+      if (q && !`${u.name} ${u.email}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [users, filters]);
+
+  const activeFilters = Object.values(filters).filter(Boolean).length;
 
   // Role and branch are saved together. Promoting someone to Branch
   // Administrator without a branch would leave them able to sign in and see
@@ -107,7 +149,11 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
         <div>
           <h1 className="page-title">IT staff</h1>
           <p className="page-sub">
-            {loading ? 'Loading…' : `${users.length} account${users.length === 1 ? '' : 's'} with access to the register`}
+            {loading
+              ? 'Loading…'
+              : activeFilters > 0
+                ? `${visible.length} of ${users.length} accounts`
+                : `${users.length} account${users.length === 1 ? '' : 's'} with access to the register`}
           </p>
         </div>
         <div className="page-actions">
@@ -119,10 +165,55 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
         <div className={notice.kind === 'ok' ? 'notice notice-ok' : 'notice notice-error'}>{notice.text}</div>
       )}
 
+      <div className="filters" style={{ marginBottom: '1.25rem' }}>
+        <input
+          type="search"
+          placeholder="Search name or email…"
+          value={filters.q}
+          onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
+          style={{ width: 'auto', minWidth: '14rem' }}
+        />
+
+        {/* Counts sit in the option labels so you can see the shape of the
+            team without clicking through each role in turn. */}
+        <select
+          value={filters.role}
+          onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value }))}
+        >
+          <option value="">All roles ({users.length})</option>
+          {ALL_ROLES.map((r) => (
+            <option key={r} value={r}>{r} ({roleCounts[r] || 0})</option>
+          ))}
+        </select>
+
+        <select
+          value={filters.branch}
+          onChange={(e) => setFilters((f) => ({ ...f, branch: e.target.value }))}
+        >
+          <option value="">Sees anywhere</option>
+          <option value="__unscoped">All branches ({users.length - scopedCount})</option>
+          <option value="__none">No branch set</option>
+          {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+        </select>
+
+        {activeFilters > 0 && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => setFilters({ q: '', role: '', branch: '' })}
+          >
+            Clear {activeFilters} filter{activeFilters === 1 ? '' : 's'}
+          </button>
+        )}
+      </div>
+
       {loading ? (
         <p className="empty">Loading staff accounts…</p>
-      ) : users.length === 0 ? (
-        <div className="card"><p className="empty">No staff accounts yet.</p></div>
+      ) : visible.length === 0 ? (
+        <div className="card">
+          <p className="empty">
+            {users.length === 0 ? 'No staff accounts yet.' : 'No accounts match these filters.'}
+          </p>
+        </div>
       ) : (
         <div className="table-wrap">
           <table className="table">
@@ -137,7 +228,7 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => {
+              {visible.map((u) => {
                 const isSelf = u.id === currentUserId;
                 const role = canonicalRole(u.role);
                 const scoped = role === ROLES.BRANCH_ADMIN;
