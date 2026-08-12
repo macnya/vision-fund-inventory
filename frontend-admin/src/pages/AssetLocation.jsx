@@ -4,6 +4,15 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { fetchAssetLocations, fetchLocationsList, fetchEmployeesList, createAssignment } from '../api';
 import { colors } from '../theme';
+import { canChangeAssets } from '../roles';
+
+function currentUser() {
+  try {
+    return JSON.parse(localStorage.getItem('user') || 'null');
+  } catch {
+    return null;
+  }
+}
 
 // Pins are coloured by condition so a branch full of faulty kit is visible
 // without clicking anything. Built as divIcons rather than image files: no
@@ -60,6 +69,8 @@ export default function AssetLocations({ onSelectAsset }) {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const me = currentUser();
+  const canAssign = canChangeAssets(me);
 
   const loadAssets = useCallback(
     () => fetchAssetLocations({ verifiedOnly }).then(setAssets),
@@ -113,7 +124,7 @@ export default function AssetLocations({ onSelectAsset }) {
             {verifiedOnly
               ? 'physically verified by an officer on site'
               : 'with a recorded GPS location (last scan, transfer, or verification)'}.
-            Click a pin to reassign branch or holder.
+            {canAssign ? ' Click a pin to reassign branch or holder.' : ''}
           </p>
         </div>
         <input
@@ -172,6 +183,7 @@ export default function AssetLocations({ onSelectAsset }) {
                     asset={a}
                     locations={locations}
                     employees={employees}
+                    canAssign={canAssign}
                     onSelectAsset={onSelectAsset}
                     onAssigned={loadAssets}
                   />
@@ -185,7 +197,7 @@ export default function AssetLocations({ onSelectAsset }) {
   );
 }
 
-function AssetPopupContent({ asset, locations, employees, onSelectAsset, onAssigned }) {
+function AssetPopupContent({ asset, locations, employees, canAssign, onSelectAsset, onAssigned }) {
   const [locationId, setLocationId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [saving, setSaving] = useState(false);
@@ -233,40 +245,44 @@ function AssetPopupContent({ asset, locations, employees, onSelectAsset, onAssig
         {new Date(asset.recorded_at).toLocaleString()}
       </div>
 
-      <div style={{ marginTop: 10, borderTop: '1px solid #eee', paddingTop: 8 }}>
-        <label style={popupLabelStyle}>Move to branch</label>
-        <select
-          value={locationId}
-          onChange={(e) => setLocationId(e.target.value)}
-          style={popupSelectStyle}
-        >
-          <option value="">— No change —</option>
-          {locations.map((l) => (
-            <option key={l.id} value={l.id}>{l.branch}{l.physical_location ? ' - ' + l.physical_location : ''}</option>
-          ))}
-        </select>
+      {/* Read-only roles used to see this whole form, pick a branch and a
+          person, and only then get a 403 from the backend. */}
+      {canAssign && (
+        <div style={{ marginTop: 10, borderTop: '1px solid #eee', paddingTop: 8 }}>
+          <label style={popupLabelStyle}>Move to branch</label>
+          <select
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            style={popupSelectStyle}
+          >
+            <option value="">— No change —</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>{l.branch}{l.physical_location ? ' - ' + l.physical_location : ''}</option>
+            ))}
+          </select>
 
-        <label style={popupLabelStyle}>Assign to</label>
-        <select
-          value={employeeId}
-          onChange={(e) => setEmployeeId(e.target.value)}
-          style={popupSelectStyle}
-        >
-          <option value="">— No change —</option>
-          {employees.map((e) => (
-            <option key={e.id} value={e.id}>{e.name}</option>
-          ))}
-        </select>
+          <label style={popupLabelStyle}>Assign to</label>
+          <select
+            value={employeeId}
+            onChange={(e) => setEmployeeId(e.target.value)}
+            style={popupSelectStyle}
+          >
+            <option value="">— No change —</option>
+            {employees.map((e) => (
+              <option key={e.id} value={e.id}>{e.name}</option>
+            ))}
+          </select>
 
-        <button
-          onClick={handleAssign}
-          disabled={saving}
-          style={{ marginTop: 6, width: '100%', padding: '5px 10px', background: colors.primary, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}
-        >
-          {saving ? 'Saving...' : 'Save Assignment'}
-        </button>
-        {message && <div style={{ marginTop: 6, fontSize: 11, color: message === 'Updated.' ? colors.success : colors.danger }}>{message}</div>}
-      </div>
+          <button
+            onClick={handleAssign}
+            disabled={saving}
+            style={{ marginTop: 6, width: '100%', padding: '5px 10px', background: colors.primary, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}
+          >
+            {saving ? 'Saving...' : 'Save Assignment'}
+          </button>
+          {message && <div style={{ marginTop: 6, fontSize: 11, color: message === 'Updated.' ? colors.success : colors.danger }}>{message}</div>}
+        </div>
+      )}
 
       {onSelectAsset && (
         <button
@@ -283,7 +299,7 @@ function AssetPopupContent({ asset, locations, employees, onSelectAsset, onAssig
 const controlRowStyle = {
   display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
   marginBottom: 12, padding: '10px 14px',
-  background: 'rgba(255,255,255,0.06)', borderRadius: 8,
+  background: colors.gray, borderRadius: 8,
 };
 const legendItemStyle = {
   display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: colors.grayText,

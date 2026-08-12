@@ -10,7 +10,7 @@ const MIN_PASSWORD_LENGTH = 8;
 
 // Register a new IT staff member (use this once to create your first admin, then restrict/remove access later)
 async function register(req, res) {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, branch } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email, and password are required' });
@@ -19,6 +19,14 @@ async function register(req, res) {
   if (password.length < MIN_PASSWORD_LENGTH) {
     return res.status(400).json({
       error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+    });
+  }
+
+  // A Branch Administrator with no branch would see nothing at all — the scope
+  // fails closed. Better to refuse the account than create a broken one.
+  if (role === ROLES.BRANCH_ADMIN && !branch) {
+    return res.status(400).json({
+      error: 'A Branch Administrator must be given a branch',
     });
   }
 
@@ -34,10 +42,10 @@ async function register(req, res) {
     // did not choose this password, and it has almost certainly been sent to
     // them over WhatsApp or read out loud.
     const result = await pool.query(
-      `INSERT INTO it_staff (name, email, password_hash, role, must_change_password, password_changed_at)
-       VALUES ($1, $2, $3, $4, true, NOW())
-       RETURNING id, name, email, role, must_change_password`,
-      [name, email.trim().toLowerCase(), password_hash, role || 'IT Staff']
+      `INSERT INTO it_staff (name, email, password_hash, role, branch, must_change_password, password_changed_at)
+       VALUES ($1, $2, $3, $4, $5, true, NOW())
+       RETURNING id, name, email, role, branch, must_change_password`,
+      [name, email.trim().toLowerCase(), password_hash, role || ROLES.OFFICER, branch || null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -84,6 +92,7 @@ async function login(req, res) {
         name: user.name,
         email: user.email,
         role: user.role,
+        branch: user.branch || null,
         must_change_password: user.must_change_password === true,
       },
     });
@@ -102,6 +111,7 @@ async function getUsers(req, res) {
           name,
           email,
           role,
+          branch,
           created_at,
           must_change_password,
           password_changed_at
@@ -123,9 +133,9 @@ async function getUsers(req, res) {
 // PUT /auth/users/:id/role — change a user's role
 async function updateUserRole(req, res) {
   const { id } = req.params;
-  const { role } = req.body;
+  const { role, branch } = req.body;
 
-  const validRoles = Object.values(ROLES); // ['IT Admin', 'IT Officer', 'Branch Manager', 'Auditor']
+  const validRoles = Object.values(ROLES);
 
   if (!role || !validRoles.includes(role)) {
     return res.status(400).json({
@@ -134,12 +144,21 @@ async function updateUserRole(req, res) {
   }
 
   try {
+    // Branch only means something for a Branch Administrator. Clearing it for
+    // every other role stops a stale value sitting on an account and quietly
+    // taking effect if they're moved back later.
+    const nextBranch = role === ROLES.BRANCH_ADMIN ? (branch || null) : null;
+
+    if (role === ROLES.BRANCH_ADMIN && !nextBranch) {
+      return res.status(400).json({ error: 'A Branch Administrator must be given a branch' });
+    }
+
     const result = await pool.query(
       `UPDATE it_staff
-       SET role = $1
-       WHERE id = $2
-       RETURNING id, name, email, role, created_at`,
-      [role, id]
+       SET role = $1, branch = $2
+       WHERE id = $3
+       RETURNING id, name, email, role, branch, created_at`,
+      [role, nextBranch, id]
     );
 
     if (result.rows.length === 0) {
@@ -184,7 +203,7 @@ async function refreshToken(req, res) {
   try {
     // Re-check the user still exists and hasn't been deleted/disabled since the original token was issued
     const result = await pool.query(
-      'SELECT id, name, email, role, must_change_password FROM it_staff WHERE id = $1',
+      'SELECT id, name, email, role, branch, must_change_password FROM it_staff WHERE id = $1',
       [req.user.id]
     );
     const user = result.rows[0];

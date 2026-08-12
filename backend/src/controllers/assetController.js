@@ -4,6 +4,7 @@ const {
   DEFAULT_CONDITION,
   isValidCondition,
 } = require('../constants/assetConditions');
+const { branchScopeFor } = require('../utils/scope');
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -21,9 +22,16 @@ const ASSET_JOINS = `
 // `assigned` and `sort` are new. Assignment state can't be read off
 // asset.status alone — an asset can be In Stock with a stale open assignment —
 // so it's derived from whether a live assignment row exists.
-function buildAssetFilter({ search, category, status, branch, assigned }) {
+function buildAssetFilter({ search, category, status, branch, assigned }, scopeBranch) {
   const clauses = [];
   const params = [];
+
+  // Applied first and not user-supplied: a Branch Administrator cannot widen
+  // their own view by passing ?branch= for somewhere else.
+  if (scopeBranch) {
+    params.push(scopeBranch);
+    clauses.push(`l.branch = $${params.length}`);
+  }
 
   if (search) {
     params.push(`%${search}%`);
@@ -81,7 +89,7 @@ async function getAllAssets(req, res) {
   const offset = Number.isFinite(parsedOffset) && parsedOffset > 0 ? parsedOffset : 0;
 
   try {
-    const { where, params } = buildAssetFilter(req.query);
+    const { where, params } = buildAssetFilter(req.query, branchScopeFor(req));
 
     const countResult = await pool.query(
       `SELECT COUNT(DISTINCT a.id)::int AS total ${ASSET_JOINS} ${where}`,
@@ -133,6 +141,8 @@ async function getAllConditions(req, res) {
 // rather than three.
 async function getFilterOptions(req, res) {
   try {
+    const scopeBranch = branchScopeFor(req);
+
     const [categories, branches] = await Promise.all([
       pool.query('SELECT id, name FROM asset_category ORDER BY name'),
       pool.query(
@@ -141,9 +151,13 @@ async function getFilterOptions(req, res) {
          ORDER BY branch`
       ),
     ]);
+
     res.json({
       categories: categories.rows,
-      branches: branches.rows.map((r) => r.branch),
+      // Offering branches they cannot see would just produce empty results.
+      branches: scopeBranch
+        ? branches.rows.map((r) => r.branch).filter((b) => b === scopeBranch)
+        : branches.rows.map((r) => r.branch),
       statuses: ['In Stock', 'Assigned', 'Disposed', 'Lost'],
       conditions: ASSET_CONDITIONS,
     });
@@ -181,6 +195,17 @@ async function getAssetByCode(req, res) {
        WHERE ag.asset_id = $1 AND ag.returned_date IS NULL`,
       [asset.id]
     );
+
+    // A scoped role must not read an asset outside their branch, even by
+    // typing its code directly. Checked after the assignment lookup because
+    // that is where an asset's branch actually lives.
+    const scopeBranch = branchScopeFor(req);
+    if (scopeBranch) {
+      const assignedBranch = assignmentResult.rows[0]?.branch || null;
+      if (assignedBranch !== scopeBranch) {
+        return res.status(403).json({ error: 'This asset is not at your branch' });
+      }
+    }
 
     // Full custody and inspection trail in one list: who handed the asset
     // over, who took it, who returned it to stock, and who physically

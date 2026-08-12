@@ -1,8 +1,24 @@
 const pool = require('../db/pool');
 const PDFDocument = require('pdfkit');
+const { branchScopeFor } = require('../utils/scope');
 
 // GET /dashboard/stats — single aggregated payload for the admin dashboard
 async function getDashboardStats(req, res) {
+  // A Branch Administrator's dashboard counts only their own branch. Every
+  // query below therefore takes the same optional filter rather than one of
+  // them being missed — the tile totals and the list behind them have to
+  // agree or the dashboard is lying.
+  const scopeBranch = branchScopeFor(req);
+  const scoped = (alias) =>
+    scopeBranch ? `AND ${alias}.branch = $1` : '';
+  const args = scopeBranch ? [scopeBranch] : [];
+
+  // Assets reach a branch through their current open assignment.
+  const ASSET_SCOPE = scopeBranch
+    ? `JOIN assignment sag ON sag.asset_id = a.id AND sag.returned_date IS NULL
+       JOIN location sl ON sl.id = sag.location_id AND sl.branch = $1`
+    : '';
+
   try {
     const [
       totalAssetsResult,
@@ -13,38 +29,55 @@ async function getDashboardStats(req, res) {
       assetsByBranchResult,
       recentActivityResult,
     ] = await Promise.all([
-      pool.query(`SELECT COUNT(*)::int AS count FROM asset`),
+      pool.query(`SELECT COUNT(DISTINCT a.id)::int AS count FROM asset a ${ASSET_SCOPE}`, args),
 
-      pool.query(`SELECT status, COUNT(*)::int AS count FROM asset GROUP BY status`),
+      pool.query(
+        `SELECT a.status, COUNT(DISTINCT a.id)::int AS count
+         FROM asset a ${ASSET_SCOPE}
+         GROUP BY a.status`,
+        args
+      ),
 
-      pool.query(`SELECT COUNT(*)::int AS count FROM employee`),
+      scopeBranch
+        ? pool.query(`SELECT COUNT(*)::int AS count FROM employee e WHERE e.branch = $1`, args)
+        : pool.query(`SELECT COUNT(*)::int AS count FROM employee`),
 
-      pool.query(`SELECT COUNT(DISTINCT branch)::int AS count FROM location`),
+      scopeBranch
+        ? pool.query(`SELECT 1::int AS count`)
+        : pool.query(`SELECT COUNT(DISTINCT branch)::int AS count FROM location`),
 
-      pool.query(`
-        SELECT COALESCE(ac.name, 'Uncategorized') AS name, COUNT(a.id)::int AS count
-        FROM asset a
-        LEFT JOIN asset_category ac ON a.asset_category_id = ac.id
-        GROUP BY ac.name
-        ORDER BY count DESC
-      `),
+      pool.query(
+        `SELECT COALESCE(ac.name, 'Uncategorized') AS name, COUNT(DISTINCT a.id)::int AS count
+         FROM asset a
+         LEFT JOIN asset_category ac ON a.asset_category_id = ac.id
+         ${ASSET_SCOPE}
+         GROUP BY ac.name
+         ORDER BY count DESC`,
+        args
+      ),
 
-      pool.query(`
-        SELECT l.branch, COUNT(DISTINCT ag.asset_id)::int AS count
-        FROM assignment ag
-        JOIN location l ON ag.location_id = l.id
-        WHERE ag.returned_date IS NULL
-        GROUP BY l.branch
-        ORDER BY count DESC
-      `),
+      pool.query(
+        `SELECT l.branch, COUNT(DISTINCT ag.asset_id)::int AS count
+         FROM assignment ag
+         JOIN location l ON ag.location_id = l.id
+         WHERE ag.returned_date IS NULL ${scoped('l')}
+         GROUP BY l.branch
+         ORDER BY count DESC`,
+        args
+      ),
 
-      pool.query(`
-        SELECT sl.action, sl.timestamp, a.asset_code, a.description
-        FROM scan_log sl
-        JOIN asset a ON sl.asset_id = a.id
-        ORDER BY sl.timestamp DESC
-        LIMIT 10
-      `),
+      pool.query(
+        `SELECT sl.action, sl.timestamp, a.asset_code, a.description
+         FROM scan_log sl
+         JOIN asset a ON sl.asset_id = a.id
+         ${scopeBranch
+            ? `JOIN assignment sag ON sag.asset_id = a.id AND sag.returned_date IS NULL
+               JOIN location slo ON slo.id = sag.location_id AND slo.branch = $1`
+            : ''}
+         ORDER BY sl.timestamp DESC
+         LIMIT 10`,
+        args
+      ),
     ]);
 
     // Flatten status counts into named fields for the KPI cards
@@ -65,6 +98,7 @@ async function getDashboardStats(req, res) {
       categories: categoriesResult.rows,        // for the "Assets by Category" pie chart
       assetsByBranch: assetsByBranchResult.rows, // for the "Assets by Branch" bar chart
       recentActivity: recentActivityResult.rows,
+      scopedToBranch: scopeBranch || null,      // the UI says so when a view is limited
     });
   } catch (err) {
     console.error(err);
@@ -83,6 +117,7 @@ async function getDashboardStats(req, res) {
 // actually stood next to it and confirmed its condition".
 async function getAssetLocations(req, res) {
   const verifiedOnly = String(req.query.verifiedOnly).toLowerCase() === 'true';
+  const scopeBranch = branchScopeFor(req);
 
   try {
     const result = await pool.query(`
@@ -127,8 +162,9 @@ async function getAssetLocations(req, res) {
         LIMIT 1
       ) loc ON true
       WHERE loc.latitude IS NOT NULL
+        AND ($2::text IS NULL OR l.branch = $2)
       ORDER BY loc.recorded_at DESC
-    `, [verifiedOnly]);
+    `, [verifiedOnly, scopeBranch]);
 
     res.json(result.rows);
   } catch (err) {

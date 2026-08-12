@@ -1,18 +1,46 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 
+// Canonical role names used across the app.
+//
+// BRANCH_ADMIN was "Branch Manager". The rename reflects what the role does:
+// administers the assets at one branch, as opposed to IT Admin who administers
+// the whole register.
+const ROLES = {
+  ADMIN: 'IT Admin',
+  OFFICER: 'IT Officer',
+  BRANCH_ADMIN: 'Branch Administrator',
+  AUDITOR: 'Auditor',
+};
+
+// Accounts predating a rename still carry the old value. Both are accepted so
+// nobody is locked out between the migration and the data being updated.
+const LEGACY_ROLES = {
+  'Admin': ROLES.ADMIN,
+  'Branch Manager': ROLES.BRANCH_ADMIN,
+};
+
+function canonicalRole(role) {
+  return LEGACY_ROLES[role] || role;
+}
+
+function isAdminRole(role) {
+  return canonicalRole(role) === ROLES.ADMIN;
+}
+
 // JWTs are stateless: once issued they stay valid for their full 8 hours no
-// matter what happens to the account. That makes "reset this person's
-// password because their account is compromised" only half work — whoever
-// holds their current token keeps access until it expires.
+// matter what happens to the account. That makes "reset this person's password
+// because their account is compromised" only half work — whoever holds their
+// current token keeps access until it expires.
 //
-// So after verifying the signature we check the token was issued AFTER the
-// password was last changed. A reset therefore ends every existing session.
+// So after verifying the signature we look the account up. That gives us three
+// things the token cannot: whether it was issued before the password changed,
+// the CURRENT role, and the branch a scoped role is limited to. Reading role
+// from the database rather than the token also means a demotion takes effect
+// immediately instead of at the next sign-in.
 //
-// The cost is one small indexed lookup per authenticated request. At this
-// scale that's nothing next to the queries the request itself will run, but
-// if it ever became a problem the honest fixes are a short-lived cache or
-// dropping token lifetime — not removing the check.
+// The cost is one indexed lookup per authenticated request — nothing next to
+// the queries the request itself will run.
 async function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -31,47 +59,36 @@ async function verifyToken(req, res, next) {
 
   try {
     const result = await pool.query(
-      'SELECT password_changed_at FROM it_staff WHERE id = $1',
+      'SELECT id, email, role, branch, password_changed_at FROM it_staff WHERE id = $1',
       [decoded.id]
     );
-    const row = result.rows[0];
+    const account = result.rows[0];
 
-    // Deleted mid-session.
-    if (!row) {
+    if (!account) {
       return res.status(401).json({ error: 'Account no longer exists' });
     }
 
     // jwt `iat` is in seconds; Date gives milliseconds. The one-second grace
     // covers a token issued in the same second as the change — without it,
-    // changing your own password would immediately invalidate the token you
-    // just used to change it.
-    if (row.password_changed_at) {
-      const changedAt = Math.floor(new Date(row.password_changed_at).getTime() / 1000);
+    // changing your own password would invalidate the token you just used.
+    if (account.password_changed_at) {
+      const changedAt = Math.floor(new Date(account.password_changed_at).getTime() / 1000);
       if (decoded.iat && decoded.iat < changedAt - 1) {
         return res.status(401).json({ error: 'Password was changed. Please sign in again.' });
       }
     }
 
-    req.user = decoded; // { id, email, role }
+    req.user = {
+      id: account.id,
+      email: account.email,
+      role: canonicalRole(account.role),
+      branch: account.branch || null,
+    };
     next();
   } catch (err) {
     console.error('Auth check failed:', err);
     return res.status(500).json({ error: 'Could not verify your session' });
   }
-}
-
-// Canonical role names used across the app
-const ROLES = {
-  ADMIN: 'IT Admin',
-  OFFICER: 'IT Officer',
-  BRANCH_MANAGER: 'Branch Manager',
-  AUDITOR: 'Auditor',
-};
-
-// Legacy accounts created before the role rename may still have role = 'Admin'.
-// Treat that as equivalent to 'IT Admin' so existing admins aren't locked out.
-function isAdminRole(role) {
-  return role === ROLES.ADMIN || role === 'Admin';
 }
 
 function requireAdmin(req, res, next) {
@@ -87,10 +104,8 @@ function requireRole(...allowedRoles) {
     if (!req.user) {
       return res.status(401).json({ error: 'No token provided' });
     }
-    const ok = allowedRoles.some((r) =>
-      r === ROLES.ADMIN ? isAdminRole(req.user.role) : req.user.role === r
-    );
-    if (!ok) {
+    const mine = canonicalRole(req.user.role);
+    if (!allowedRoles.map(canonicalRole).includes(mine)) {
       return res.status(403).json({
         error: `Access denied. Requires one of: ${allowedRoles.join(', ')}`,
       });
@@ -99,4 +114,4 @@ function requireRole(...allowedRoles) {
   };
 }
 
-module.exports = { verifyToken, requireAdmin, requireRole, ROLES };
+module.exports = { verifyToken, requireAdmin, requireRole, ROLES, canonicalRole, isAdminRole };

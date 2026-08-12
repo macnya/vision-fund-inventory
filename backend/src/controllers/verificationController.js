@@ -1,5 +1,6 @@
 const pool = require('../db/pool');
 const { ASSET_CONDITIONS, isValidCondition } = require('../constants/assetConditions');
+const { branchScopeFor } = require('../utils/scope');
 
 // POST /assets/:asset_code/verify — officer verifies an asset's physical condition
 async function verifyAsset(req, res) {
@@ -79,6 +80,13 @@ async function getVerificationReport(req, res) {
       WHERE 1=1
     `;
     const params = [];
+
+    // Not user-supplied, so a scoped role can't widen their view with ?branch=
+    const scopeBranch = branchScopeFor(req);
+    if (scopeBranch) {
+      params.push(scopeBranch);
+      query += ` AND l.branch = $${params.length}`;
+    }
 
     if (branch) {
       params.push(branch);

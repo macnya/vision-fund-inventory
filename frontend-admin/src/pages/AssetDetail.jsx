@@ -4,6 +4,15 @@ import {
   updateAsset, fetchAssetFilters,
 } from '../api';
 import { API_BASE_URL } from '../config';
+import { isAdmin, canDispose } from '../roles';
+
+function currentUser() {
+  try {
+    return JSON.parse(localStorage.getItem('user') || 'null');
+  } catch {
+    return null;
+  }
+}
 
 // Mirrors the EDITABLE list on the backend. asset_code and status are absent
 // on purpose: the code is printed on a physical label, and status is derived
@@ -42,15 +51,6 @@ const EVENT_BADGE = {
   'Lost':         'badge-warn',
 };
 
-function isAdmin() {
-  try {
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    return user?.role === 'IT Admin' || user?.role === 'Admin';
-  } catch {
-    return false;
-  }
-}
-
 const money = (v) =>
   v == null || v === '' ? null : `KES ${Number(v).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -63,7 +63,8 @@ export default function AssetDetail({ assetCode, onBack }) {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);   // { kind: 'ok' | 'error', text }
   const [options, setOptions] = useState({ categories: [], conditions: [] });
-  const admin = isAdmin();
+  const me = currentUser();
+  const admin = isAdmin(me);
 
   // useCallback so the effect below can depend on it honestly, and so saveEdit
   // gets a stable reference rather than a new function on every render.
@@ -288,7 +289,10 @@ export default function AssetDetail({ assetCode, onBack }) {
             )}
           </div>
 
-          {active && (
+          {/* Disposal and write-off are register decisions, not field ones. A
+              read-only role used to see both buttons, fill in the prompts, and
+              only then hit a 403 from the backend. */}
+          {active && canDispose(me) && (
             <div className="card-body" style={{ borderTop: '1px solid var(--rule)' }}>
               <div className="page-actions">
                 <button className="btn btn-danger btn-sm" onClick={handleMarkDisposed}>Mark as disposed</button>

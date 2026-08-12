@@ -13,17 +13,8 @@ import VerificationReport from './pages/VerificationReport';
 import AssetLocations from './pages/AssetLocation';
 import ChangePassword from './pages/ChangePassword';
 import { refreshSession } from './api';
+import { isAdmin, canCreateAssets, canManageRecords } from './roles';
 import logo from './assets/logo.png';
-
-// Accounts created before the role rename still carry 'Admin', which the
-// backend also accepts — so the UI has to agree or those admins see an empty
-// nav bar.
-function isAdmin(user) {
-  return user?.role === 'IT Admin' || user?.role === 'Admin';
-}
-function canCreateAssets(user) {
-  return isAdmin(user) || user?.role === 'IT Officer';
-}
 
 const TABS = [
   { key: 'dashboard',     label: 'Dashboard' },
@@ -136,7 +127,7 @@ function App() {
         onSelectAsset={openAsset}
         initialStatus={listInitialStatus}
         canCreate={canCreateAssets(user)}
-        canManage={isAdmin(user)}
+        canManage={canManageRecords(user)}
         onNewAsset={() => setView('newAsset')}
         onNewEmployee={() => setView('newEmployee')}
         onNewLocation={() => setView('newLocation')}
@@ -175,6 +166,9 @@ function App() {
           </nav>
 
           <div className="topbar-user">
+            {/* A scoped role should never be in any doubt that they're seeing
+                part of the register rather than all of it. */}
+            {user.branch && <span className="badge badge-navy">{user.branch}</span>}
             <button className="btn btn-ghost btn-sm" onClick={() => setChangingPassword(true)}>
               {user.name}
             </button>
