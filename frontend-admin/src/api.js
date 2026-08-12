@@ -135,8 +135,10 @@ export async function fetchUsers() {
   return res.data;
 }
 
-export async function updateUserRole(id, role) {
-  const res = await api.put(`/auth/users/${id}/role`, { role });
+// branch only means anything for a Branch Administrator; the backend clears
+// it for every other role so a stale value can't quietly take effect later.
+export async function updateUserRole(id, role, branch) {
+  const res = await api.put(`/auth/users/${id}/role`, { role, branch });
   return res.data;
 }
 
@@ -158,8 +160,8 @@ export async function resetUserPassword(id, newPassword) {
   return res.data;
 }
 
-export async function createUser({ name, email, password, role }) {
-  const res = await api.post('/auth/register', { name, email, password, role });
+export async function createUser({ name, email, password, role, branch }) {
+  const res = await api.post('/auth/register', { name, email, password, role, branch });
   return res.data;
 }
 

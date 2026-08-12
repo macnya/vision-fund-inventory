@@ -1,18 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchUsers, updateUserRole, deleteUser, resetUserPassword } from '../api';
-
-const ROLES = ['IT Admin', 'IT Officer', 'Branch Manager', 'Auditor'];
-
-// What each role can actually do, so whoever is granting access isn't guessing.
-const ROLE_NOTE = {
-  'IT Admin':       'Full access, including editing the register and managing staff.',
-  'IT Officer':     'Scans, assigns and verifies assets in the field.',
-  'Branch Manager': 'Read-only.',
-  'Auditor':        'Read-only.',
-};
+import { fetchUsers, updateUserRole, deleteUser, resetUserPassword, fetchAssetFilters } from '../api';
+import { ALL_ROLES, ROLE_NOTE, ROLES, canonicalRole } from '../roles';
 
 export default function UserManagement({ currentUserId, onCreateNew }) {
   const [users, setUsers] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(null);   // { kind, text }
 
@@ -31,13 +23,41 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadUsers();
+    fetchAssetFilters().then((o) => setBranches(o.branches || [])).catch(() => {});
   }, [loadUsers]);
 
-  const handleRoleChange = async (id, name, newRole) => {
+  // Role and branch are saved together. Promoting someone to Branch
+  // Administrator without a branch would leave them able to sign in and see
+  // nothing, so the backend refuses it and this asks for one first.
+  const handleRoleChange = async (user, newRole) => {
     setNotice(null);
+
+    let branch = user.branch || null;
+    if (newRole === ROLES.BRANCH_ADMIN) {
+      const chosen = prompt(
+        `Which branch is ${user.name} responsible for?\n\n` +
+        `Type it exactly as it appears below:\n\n${branches.join('\n')}`,
+        branch || ''
+      );
+      if (chosen === null) return;                       // cancelled
+      branch = chosen.trim();
+      if (!branches.includes(branch)) {
+        setNotice({
+          kind: 'error',
+          text: `"${branch}" is not a branch in the register. A Branch Administrator's view is an exact match, so it has to be one of the listed names.`,
+        });
+        return;
+      }
+    }
+
     try {
-      await updateUserRole(id, newRole);
-      setNotice({ kind: 'ok', text: `${name} is now ${newRole}.` });
+      await updateUserRole(user.id, newRole, branch);
+      setNotice({
+        kind: 'ok',
+        text: newRole === ROLES.BRANCH_ADMIN
+          ? `${user.name} now administers ${branch} only.`
+          : `${user.name} is now ${newRole}.`,
+      });
       loadUsers();
     } catch (err) {
       setNotice({ kind: 'error', text: err.response?.data?.error || 'Failed to update role.' });
@@ -50,7 +70,7 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
       `They will be asked to choose their own the next time they sign in, and ` +
       `this will end any session they currently have open.`
     );
-    if (temp === null) return;                       // cancelled
+    if (temp === null) return;
     if (temp.trim().length < 8) {
       setNotice({ kind: 'error', text: 'That password is too short — 8 characters minimum.' });
       return;
@@ -111,7 +131,7 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
-                <th>Joined</th>
+                <th>Sees</th>
                 <th>Password</th>
                 <th aria-label="Actions"></th>
               </tr>
@@ -119,7 +139,8 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
             <tbody>
               {users.map((u) => {
                 const isSelf = u.id === currentUserId;
-                const role = ROLES.includes(u.role) ? u.role : 'IT Admin';
+                const role = canonicalRole(u.role);
+                const scoped = role === ROLES.BRANCH_ADMIN;
                 return (
                   <tr key={u.id}>
                     <td data-label="Name">
@@ -127,16 +148,29 @@ export default function UserManagement({ currentUserId, onCreateNew }) {
                       {isSelf && <span className="badge badge-neutral" style={{ marginLeft: '0.5rem' }}>you</span>}
                     </td>
                     <td data-label="Email">{u.email}</td>
+
                     <td data-label="Role">
                       <select
-                        value={role}
-                        onChange={(e) => handleRoleChange(u.id, u.name, e.target.value)}
+                        value={ALL_ROLES.includes(role) ? role : ROLES.OFFICER}
+                        onChange={(e) => handleRoleChange(u, e.target.value)}
                         title={ROLE_NOTE[role]}
                       >
-                        {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                        {ALL_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                       </select>
                     </td>
-                    <td data-label="Joined">{new Date(u.created_at).toLocaleDateString()}</td>
+
+                    {/* Which slice of the register this account can see. A
+                        scoped account with no branch sees nothing, so that
+                        state is called out rather than left blank. */}
+                    <td data-label="Sees">
+                      {!scoped ? (
+                        <span className="cell-sub">All branches</span>
+                      ) : u.branch ? (
+                        <span className="badge badge-navy">{u.branch}</span>
+                      ) : (
+                        <span className="badge badge-bad">No branch set</span>
+                      )}
+                    </td>
 
                     <td data-label="Password">
                       {u.must_change_password ? (

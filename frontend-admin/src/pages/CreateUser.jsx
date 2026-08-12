@@ -1,23 +1,32 @@
-import { useState } from 'react';
-import { createUser } from '../api';
-
-const ROLES = [
-  { value: 'IT Officer',     note: 'Scans, assigns and verifies assets in the field.' },
-  { value: 'IT Admin',       note: 'Full access, including editing the register and managing staff.' },
-  { value: 'Branch Manager', note: 'Read-only.' },
-  { value: 'Auditor',        note: 'Read-only.' },
-];
+import { useState, useEffect } from 'react';
+import { createUser, fetchAssetFilters } from '../api';
+import { ALL_ROLES, ROLE_NOTE, ROLES } from '../roles';
 
 export default function CreateUser({ onBack, onCreated }) {
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'IT Officer' });
+  const [form, setForm] = useState({
+    name: '', email: '', password: '', role: ROLES.OFFICER, branch: '',
+  });
+  const [branches, setBranches] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Branch names come from the location table rather than being typed. A
+  // Branch Administrator's scope is an exact string match, so "Eldoret " with
+  // a trailing space would silently show them nothing.
+  useEffect(() => {
+    fetchAssetFilters()
+      .then((o) => setBranches(o.branches || []))
+      .catch(() => setError('Could not load the branch list. Check your connection.'));
+  }, []);
+
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const needsBranch = form.role === ROLES.BRANCH_ADMIN;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
     if (!form.name.trim() || !form.email.trim() || !form.password) {
       setError('Name, email and password are all required.');
       return;
@@ -26,6 +35,11 @@ export default function CreateUser({ onBack, onCreated }) {
       setError('Password must be at least 8 characters.');
       return;
     }
+    if (needsBranch && !form.branch) {
+      setError('Choose the branch this administrator is responsible for.');
+      return;
+    }
+
     setLoading(true);
     try {
       await createUser({
@@ -33,6 +47,8 @@ export default function CreateUser({ onBack, onCreated }) {
         email: form.email.trim().toLowerCase(),
         password: form.password,
         role: form.role,
+        // Sent only when it means something. Every other role is unscoped.
+        branch: needsBranch ? form.branch : null,
       });
       onCreated();
     } catch (err) {
@@ -41,8 +57,6 @@ export default function CreateUser({ onBack, onCreated }) {
       setLoading(false);
     }
   };
-
-  const selectedRole = ROLES.find((r) => r.value === form.role);
 
   return (
     <div className="page form-page">
@@ -95,10 +109,27 @@ export default function CreateUser({ onBack, onCreated }) {
           <div className="field">
             <label htmlFor="u-role">Role *</label>
             <select id="u-role" value={form.role} onChange={set('role')}>
-              {ROLES.map((r) => <option key={r.value} value={r.value}>{r.value}</option>)}
+              {ALL_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
-            <p className="field-hint">{selectedRole?.note}</p>
+            <p className="field-hint">{ROLE_NOTE[form.role]}</p>
           </div>
+
+          {/* Only shown when it applies. A branch on any other role would sit
+              there doing nothing until someone changed the role and wondered
+              why the account suddenly saw one branch. */}
+          {needsBranch && (
+            <div className="field">
+              <label htmlFor="u-branch">Branch *</label>
+              <select id="u-branch" value={form.branch} onChange={set('branch')}>
+                <option value="">— Choose a branch —</option>
+                {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <p className="field-hint">
+                They will see only the assets at this branch. An account without one
+                would see nothing at all, so it's required.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="card-body" style={{ borderTop: '1px solid var(--rule)' }}>
