@@ -145,6 +145,19 @@ export async function deleteUser(id) {
   return res.data;
 }
 
+// The account holder changes their own password. Requires the current one, so
+// a stolen token can't be used to lock the owner out.
+export async function changePassword({ current_password, new_password }) {
+  const res = await api.post('/auth/change-password', { current_password, new_password });
+  return res.data;
+}
+
+// Admin sets a temporary password. The backend forces a change on next sign-in.
+export async function resetUserPassword(id, newPassword) {
+  const res = await api.post(`/auth/users/${id}/reset-password`, { new_password: newPassword });
+  return res.data;
+}
+
 export async function createUser({ name, email, password, role }) {
   const res = await api.post('/auth/register', { name, email, password, role });
   return res.data;
