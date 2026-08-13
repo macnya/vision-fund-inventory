@@ -7,17 +7,14 @@ const pool = require('../db/pool');
 // Officer", since the people doing the scanning are administration staff
 // rather than IT.
 const ROLES = {
-  ADMIN: 'IT Admin',
+  ADMIN: 'Admin',
   OFFICER: 'Administration Officer',
   BRANCH_ADMIN: 'Branch Administrator',
   AUDITOR: 'Auditor',
 };
 
-// Accounts predating a rename still carry the old value. Both are accepted so
-// nobody is locked out between the deploy and the data being updated — and so
-// a token issued before the rename keeps working.
 const LEGACY_ROLES = {
-  'Admin': ROLES.ADMIN,
+  'IT Admin': ROLES.ADMIN,
   'Branch Manager': ROLES.BRANCH_ADMIN,
   'IT Officer': ROLES.OFFICER,
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api, { updateVerification, fetchAssetFilters } from '../api';
+import { isAdmin } from '../roles';
 
 const CONDITION_BADGE = {
   'Good':             'badge-good',
@@ -10,12 +11,11 @@ const CONDITION_BADGE = {
 // Corrections are admin-only, matching the requireRole guard on
 // PATCH /verifications/:id. Accounts created before the role rename still
 // carry 'Admin', which the backend also accepts.
-function isAdmin() {
+function currentUser() {
   try {
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    return user?.role === 'IT Admin' || user?.role === 'Admin';
+    return JSON.parse(localStorage.getItem('user') || 'null');
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -34,7 +34,7 @@ export default function VerificationReport() {
   const [draft, setDraft] = useState({ condition: '', remarks: '' });
   const [saving, setSaving] = useState(false);
 
-  const admin = isAdmin();
+  const admin = isAdmin(currentUser());
 
   useEffect(() => {
     fetchAssetFilters().then(setOptions).catch(() => {});

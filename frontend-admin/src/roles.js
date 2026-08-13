@@ -3,14 +3,14 @@
 // still carry the old value, and the backend accepts both, so the UI has to
 // as well or those users would see an empty nav bar.
 export const ROLES = {
-  ADMIN: 'IT Admin',
+  ADMIN: 'Admin',
   OFFICER: 'Administration Officer',
   BRANCH_ADMIN: 'Branch Administrator',
   AUDITOR: 'Auditor',
 };
 
 const LEGACY = {
-  'Admin': ROLES.ADMIN,
+  'IT Admin': ROLES.ADMIN,
   'Branch Manager': ROLES.BRANCH_ADMIN,
   'IT Officer': ROLES.OFFICER,
 };
