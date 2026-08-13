@@ -61,7 +61,9 @@ const CANONICAL = {
   // A programme is a World Vision Area Programme operating from a branch.
   // These two are confirmed; add the rest once the authoritative list exists.
   'south rift':             { branch: 'Rift Valley', programme: 'South Rift' },
-  'marafa':                 { branch: 'Kitale',      programme: 'Marafa' },
+  // Marafa was briefly mapped to Kitale on a misremembering. The data has it
+  // under Mombasa, which also fits — Marafa is in Kilifi county.
+  'marafa':                 { branch: 'Mombasa',     programme: 'Marafa' },
 
   // --- junk ---------------------------------------------------------------
   // "all" is not a place. It's left exactly as it is rather than guessed at:
