@@ -15,11 +15,13 @@ import ChangePassword from './pages/ChangePassword';
 import { refreshSession } from './api';
 import { isAdmin, canCreateAssets, canManageRecords } from './roles';
 import logo from './assets/logo.png';
+import Branches from './pages/Branches';
 
 const TABS = [
   { key: 'dashboard',     label: 'Dashboard' },
   { key: 'list',          label: 'Assets' },
-  { key: 'locations',     label: 'Locations' },
+  { key: 'branches',      label: 'Branches' },
+  { key: 'locations',     label: 'Map' },
   { key: 'verifications', label: 'Verifications' },
   { key: 'users',         label: 'Staff accounts', adminOnly: true },
 ];
@@ -29,6 +31,7 @@ function App() {
   const [view, setView] = useState('dashboard');
   const [selectedAssetCode, setSelectedAssetCode] = useState(null);
   const [listInitialStatus, setListInitialStatus] = useState('');
+  const [listInitialBranch, setListInitialBranch] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
@@ -76,7 +79,15 @@ function App() {
   }
 
   const openAsset = (code) => { setSelectedAssetCode(code); setView('detail'); };
-
+  // Both the dashboard tiles and the Branches page open the asset list with a
+  // filter already applied, so the numbers you clicked and the rows you land on
+  // are the same set.
+  const openList = ({ status = '', branch = '' } = {}) => {
+    setListInitialStatus(status);
+    setListInitialBranch(branch);
+    setView('list');
+  };
+  
   let content;
   if (view === 'detail') {
     content = <AssetDetail assetCode={selectedAssetCode} onBack={() => setView('list')} />;
@@ -114,6 +125,9 @@ function App() {
         }}
       />
     );
+  
+  } else if (view === 'branches') {
+    content = <Branches onSelectBranch={(branch) => openList({ branch })} />;
 
   } else if (view === 'verifications') {
     content = <VerificationReport />;
@@ -126,6 +140,7 @@ function App() {
       <AssetList
         onSelectAsset={openAsset}
         initialStatus={listInitialStatus}
+        initialBranch={listInitialBranch}
         canCreate={canCreateAssets(user)}
         canManage={canManageRecords(user)}
         onNewAsset={() => setView('newAsset')}
@@ -138,8 +153,8 @@ function App() {
     content = (
       <Dashboard
         onNavigate={(targetView, status) => {
-          setListInitialStatus(status || '');
-          setView(targetView);
+          if (targetView === 'branches') { setView('branches'); return; }
+          openList({ status: status || '' });
         }}
       />
     );

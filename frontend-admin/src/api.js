@@ -180,6 +180,12 @@ export async function fetchLocationsList() {
   return res.data;
 }
 
+// The branch structure with live asset counts, for the Branches page.
+export async function fetchBranchTree() {
+  const res = await api.get('/locations/branches');
+  return res.data;
+}
+
 export async function fetchEmployeesList() {
   const res = await api.get('/employees');
   return res.data;

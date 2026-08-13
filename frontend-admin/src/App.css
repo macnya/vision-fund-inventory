@@ -232,6 +232,41 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
   .form-row { grid-template-columns: 1fr; }
 }
 
+/* --- Branches ------------------------------------------------------------ */
+.branch-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.branch-card { overflow: hidden; }
+.branch-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: 0.9rem 1.1rem;
+}
+.branch-toggle {
+  display: flex; align-items: center; gap: 0.6rem;
+  flex: 1; text-align: left; min-width: 0;
+}
+.branch-toggle:disabled { cursor: default; }
+.branch-caret {
+  display: inline-block; width: 0.8rem; color: var(--ink-faint);
+  transition: transform 0.15s; font-size: 1.1rem; line-height: 1;
+}
+.branch-caret.is-open { transform: rotate(90deg); }
+.branch-name { font-weight: 650; font-size: 1rem; }
+.branch-meta { display: flex; align-items: center; gap: 0.9rem; flex-shrink: 0; }
+.branch-count {
+  font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--orange);
+}
+.branch-body {
+  display: grid; gap: 1.25rem; padding: 0 1.1rem 1.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  border-top: 1px solid var(--rule); padding-top: 1rem;
+}
+.branch-items { list-style: none; margin: 0; padding: 0; }
+.branch-items li {
+  display: flex; justify-content: space-between; gap: 1rem;
+  padding: 0.25rem 0; font-size: 0.875rem; color: var(--ink-soft);
+}
+.branch-item-count { font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
+
 /* --- Responsive ----------------------------------------------------------
    Below 720px the table collapses to stacked cards. A six-column table on a
    phone is either unreadable or a horizontal-scroll puzzle; each row becomes

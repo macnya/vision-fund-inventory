@@ -23,7 +23,7 @@ const STATUS_BADGE = {
 };
 
 export default function AssetList({
-  onSelectAsset, initialStatus = '',
+  onSelectAsset, initialStatus = '', initialBranch = '',
   canCreate, canManage, onNewAsset, onNewEmployee, onNewLocation,
 }) {
   const [assets, setAssets] = useState([]);
@@ -33,7 +33,9 @@ export default function AssetList({
   // `search` is what's in the box; `filters.search` is what's been submitted.
   // Without that split every keystroke would refire the request and reset paging.
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({ ...EMPTY, status: initialStatus });
+  const [filters, setFilters] = useState({
+    ...EMPTY, status: initialStatus, branch: initialBranch,
+  });
 
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
