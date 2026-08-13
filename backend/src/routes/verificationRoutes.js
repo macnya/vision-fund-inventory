@@ -1,37 +1,29 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, requireRole, ROLES } = require('../middleware/authMiddleware');
+
 const {
-  verifyAsset,
   getVerificationReport,
-  getVerificationsForAsset,
   updateVerification,
+  approveVerification,
+  rejectVerification,
+  getPendingCount,
 } = require('../controllers/verificationController');
+const { verifyToken, requireRole, ROLES } = require('../middleware/authMiddleware');
 
-// POST /assets/:asset_code/verify
-// Writing a verification also overwrites asset.condition, so this is a mutation
-// and is gated like every other write. Read-only roles (Branch Manager,
-// Auditor) can still view the reports below.
-router.post(
-  '/assets/:asset_code/verify',
-  verifyToken,
-  requireRole(ROLES.ADMIN, ROLES.OFFICER),
-  verifyAsset
-);
+router.use(verifyToken);
 
-// GET /assets/:asset_code/verifications
-router.get('/assets/:asset_code/verifications', verifyToken, getVerificationsForAsset);
+router.get('/', getVerificationReport);
 
-// GET /verifications  (report, supports ?branch=&condition=&from=&to=)
-router.get('/verifications', verifyToken, getVerificationReport);
+// Drives the badge in the navigation, so every authenticated user may call it —
+// it returns their own reviewable count, which is zero for non-admins.
+router.get('/pending/count', getPendingCount);
 
-// PATCH /verifications/:id — correct a mistyped condition or remark.
-// Admin only: officers record what they see, admins correct the record.
-router.patch(
-  '/verifications/:id',
-  verifyToken,
-  requireRole(ROLES.ADMIN),
-  updateVerification
-);
+// Approving is an Admin action, and the endpoint additionally refuses a
+// self-approval. A CHECK constraint on the table enforces the same rule, so
+// this failing open would still not permit one.
+router.post('/:id/approve', requireRole(ROLES.ADMIN), approveVerification);
+router.post('/:id/reject', requireRole(ROLES.ADMIN), rejectVerification);
+
+router.patch('/:id', requireRole(ROLES.ADMIN), updateVerification);
 
 module.exports = router;

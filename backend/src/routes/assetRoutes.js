@@ -9,7 +9,10 @@ const {
   getAllCategories,
   getAllConditions,
   getFilterOptions,
+  getPendingAssets,
+  reviewAsset,
 } = require('../controllers/assetController');
+const { verifyAsset } = require('../controllers/verificationController');
 const { getAssetBarcode } = require('../controllers/barcodeController');
 const { verifyToken, requireRole, ROLES } = require('../middleware/authMiddleware');
 
@@ -19,16 +22,29 @@ router.get('/', getAllAssets);
 router.get('/categories', getAllCategories);
 router.get('/conditions', getAllConditions);
 router.get('/filters', getFilterOptions);
-router.get('/:asset_code/barcode', getAssetBarcode);  // must come BEFORE the line below
+
+// Must come before /:asset_code, or "pending" is read as an asset code.
+router.get('/pending', requireRole(ROLES.ADMIN), getPendingAssets);
+
+router.get('/:asset_code/barcode', getAssetBarcode);
 router.get('/:asset_code', getAssetByCode);
 
-// Officers are the ones in the field scanning unrecognised barcodes, and the
-// scanner routes them straight to "Add New Asset" on a 404 — so they need to
-// be able to complete that flow, not hit a 403 after filling in the form.
-router.post('/', requireRole(ROLES.ADMIN, ROLES.OFFICER), createAsset);
+// Officers scan unrecognised barcodes in the field and are routed straight to
+// "add asset", so they need to finish that flow. Branch Administrators may now
+// register equipment arriving at their own branch; the controller holds theirs
+// as pending.
+router.post('/', requireRole(ROLES.ADMIN, ROLES.OFFICER, ROLES.BRANCH_ADMIN), createAsset);
 
-// Correcting the register itself is an admin job. Officers record what they
-// see in the field; they don't rewrite purchase prices or descriptions.
+// Verifying is a field action. Branch Administrators can now do it for their
+// own branch; the scope check in the controller enforces that. Every
+// verification is held pending regardless of who made it.
+router.post('/:asset_code/verify',
+  requireRole(ROLES.ADMIN, ROLES.OFFICER, ROLES.BRANCH_ADMIN), verifyAsset);
+
+router.post('/:asset_code/approve', requireRole(ROLES.ADMIN), reviewAsset);
+router.post('/:asset_code/reject', requireRole(ROLES.ADMIN), reviewAsset);
+
+// Correcting the register itself remains an Admin action.
 router.patch('/:asset_code', requireRole(ROLES.ADMIN), updateAsset);
 
 module.exports = router;

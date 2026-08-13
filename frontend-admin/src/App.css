@@ -291,6 +291,24 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
 }
 .branch-item-count { font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
 
+/* --- Approvals ----------------------------------------------------------- */
+.link-btn {
+  color: var(--navy); font-weight: 600; text-align: left;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.link-btn:hover { color: var(--orange-ink); }
+
+/* Count on the nav item. Sized so a two-digit number still fits without the
+   tab jumping width when it appears. */
+.nav-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.25rem; height: 1.25rem; padding: 0 0.35rem;
+  margin-left: 0.4rem; border-radius: 999px;
+  background: var(--orange); color: var(--paper);
+  font-size: 0.68rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.nav-item.is-active .nav-badge { background: var(--paper); color: var(--navy); }
+
 /* --- Responsive ----------------------------------------------------------
    Everything below is an override, so this block stays last.
 ------------------------------------------------------------------------- */

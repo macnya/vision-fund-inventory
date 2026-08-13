@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -13,7 +13,8 @@ import VerificationReport from './pages/VerificationReport';
 import AssetLocations from './pages/AssetLocation';
 import ChangePassword from './pages/ChangePassword';
 import Branches from './pages/Branches';
-import { refreshSession } from './api';
+import Approvals from './pages/Approvals';
+import { refreshSession, fetchPendingCount } from './api';
 import { isAdmin, canCreateAssets, canManageRecords } from './roles';
 import logo from './assets/logo.png';
 
@@ -23,6 +24,7 @@ const TABS = [
   { key: 'branches',      label: 'Branches' },
   { key: 'locations',     label: 'Map' },
   { key: 'verifications', label: 'Verifications' },
+  { key: 'approvals',     label: 'Approvals', adminOnly: true, badge: true },
   { key: 'users',         label: 'Staff accounts', adminOnly: true },
 ];
 
@@ -34,6 +36,7 @@ function App() {
   const [listInitialBranch, setListInitialBranch] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pending, setPending] = useState(0);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -53,6 +56,21 @@ function App() {
         // api.js handles that case by clearing storage and reloading.
       });
   }, []);
+
+  // Counted on sign-in and after each review, not on a timer. An admin who has
+  // just cleared the queue should see it empty; one who hasn't looked today
+  // should see the count waiting for them.
+  const refreshPending = useCallback(() => {
+    if (!isAdmin(user)) return;
+    fetchPendingCount()
+      .then((c) => setPending(c.total))
+      .catch(() => { /* a missing badge is better than an error banner */ });
+  }, [user]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refreshPending();
+  }, [refreshPending]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -132,6 +150,11 @@ function App() {
       />
     );
 
+  } else if (view === 'approvals') {
+    content = isAdmin(user)
+      ? <Approvals onReviewed={refreshPending} onSelectAsset={openAsset} />
+      : <AccessDenied />;
+
   } else if (view === 'branches') {
     content = <Branches onSelectBranch={(branch) => openList({ branch })} />;
 
@@ -194,6 +217,7 @@ function App() {
                 onClick={() => go(t.key)}
               >
                 {t.label}
+                {t.badge && pending > 0 && <span className="nav-badge">{pending}</span>}
               </button>
             ))}
           </nav>

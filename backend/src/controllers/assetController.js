@@ -5,7 +5,7 @@ const {
   isValidCondition,
 } = require('../constants/assetConditions');
 const { branchScopeFor } = require('../utils/scope');
-
+const { ROLES, isAdminRole } = require('../middleware/authMiddleware');
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
@@ -22,10 +22,14 @@ const ASSET_JOINS = `
 // `assigned` and `sort` are new. Assignment state can't be read off
 // asset.status alone — an asset can be In Stock with a stale open assignment —
 // so it's derived from whether a live assignment row exists.
-function buildAssetFilter({ search, category, status, branch, assigned }, scopeBranch) {
+function buildAssetFilter({ search, category, status, branch, assigned, includePending }, scopeBranch) {
   const clauses = [];
   const params = [];
-
+  // A pending asset is a claim, not yet a register entry. The approval queue is
+  // where it belongs until somebody has checked it.
+  if (includePending !== 'yes') {
+    clauses.push(`a.approval_status = 'approved'`);
+  }
   // Applied first and not user-supplied: a Branch Administrator cannot widen
   // their own view by passing ?branch= for somewhere else.
   if (scopeBranch) {
@@ -303,7 +307,13 @@ async function getAssetByCode(req, res) {
   }
 }
 
-// POST /assets — create a new asset
+// POST /assets — create a new asset.
+//
+// A Branch Administrator may register equipment that arrives at their branch,
+// but it is held as PENDING and stays out of the register until an admin
+// approves it. Officers and admins create approved assets directly: an officer
+// scanning an unknown barcode in the field is recording something that
+// demonstrably exists, which is a different act from adding a record.
 async function createAsset(req, res) {
   const {
     asset_code, description, asset_category_id, serial_number,
@@ -322,20 +332,33 @@ async function createAsset(req, res) {
     });
   }
 
+  const needsApproval = req.user.role === ROLES.BRANCH_ADMIN;
+
   try {
     const result = await pool.query(
       `INSERT INTO asset
         (asset_code, description, asset_category_id, serial_number, date_of_purchase,
          purchase_price, supplier, useful_life_years, remaining_life, monthly_depreciation,
-         accumulated_depreciation, nbv, current_end_month_date, condition)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         accumulated_depreciation, nbv, current_end_month_date, condition,
+         approval_status, created_by, approved_by, approved_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+               $15, $16, $17, $18)
        RETURNING *`,
       [asset_code, description, asset_category_id, serial_number, date_of_purchase,
        purchase_price, supplier, useful_life_years, remaining_life, monthly_depreciation,
-       accumulated_depreciation, nbv, current_end_month_date, condition || DEFAULT_CONDITION]
+       accumulated_depreciation, nbv, current_end_month_date, condition || DEFAULT_CONDITION,
+       needsApproval ? 'pending' : 'approved',
+       req.user.id,
+       needsApproval ? null : req.user.id,
+       needsApproval ? null : new Date()]
     );
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json({
+      ...result.rows[0],
+      message: needsApproval
+        ? 'Recorded. An administrator will review it before it joins the register.'
+        : undefined,
+    });
   } catch (err) {
     console.error(err);
     if (err.code === '23505') {
@@ -344,7 +367,6 @@ async function createAsset(req, res) {
     res.status(500).json({ error: 'Failed to create asset' });
   }
 }
-
 // PATCH /assets/:asset_code — admin correction of asset details.
 //
 // asset_code is deliberately NOT editable: it's the identity printed on the
@@ -402,7 +424,76 @@ async function updateAsset(req, res) {
     res.status(500).json({ error: 'Failed to update asset' });
   }
 }
+// GET /assets/pending — the approval queue.
+//
+// Excludes the caller's own submissions: they cannot approve those, and a queue
+// containing work you are forbidden to action is just noise.
+async function getPendingAssets(req, res) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT a.*, ac.name AS category_name, s.name AS created_by_name, s.branch AS created_by_branch
+       FROM asset a
+       LEFT JOIN asset_category ac ON ac.id = a.asset_category_id
+       LEFT JOIN it_staff s ON s.id = a.created_by
+       WHERE a.approval_status = 'pending'
+         AND (a.created_by IS NULL OR a.created_by <> $1)
+       ORDER BY a.id DESC`,
+      [req.user.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch pending assets' });
+  }
+}
 
+// POST /assets/:asset_code/approve  and  /reject
+//
+// Four eyes. A CHECK constraint on the table enforces the same rule, so this
+// check failing open would still not permit a self-approval.
+async function reviewAsset(req, res) {
+  const { asset_code } = req.params;
+  const approving = req.path.endsWith('/approve');
+  const { reason } = req.body;
+
+  if (!approving && !String(reason || '').trim()) {
+    return res.status(400).json({ error: 'A reason is required so the branch knows what to correct' });
+  }
+
+  try {
+    const existing = await pool.query(
+      'SELECT id, approval_status, created_by FROM asset WHERE asset_code = $1',
+      [asset_code]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+
+    const a = existing.rows[0];
+    if (a.approval_status !== 'pending') {
+      return res.status(409).json({ error: `This asset is already ${a.approval_status}` });
+    }
+    if (a.created_by === req.user.id) {
+      return res.status(403).json({
+        error: 'You cannot approve an asset you added. Another administrator must review it.',
+      });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE asset
+       SET approval_status = $1, approved_by = $2, approved_at = NOW(), rejection_reason = $3
+       WHERE asset_code = $4
+       RETURNING *`,
+      [approving ? 'approved' : 'rejected', req.user.id,
+       approving ? null : String(reason).trim(), asset_code]
+    );
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to review this asset' });
+  }
+}
 module.exports = {
   getAllAssets,
   getFilterOptions,
@@ -411,4 +502,6 @@ module.exports = {
   createAsset,
   getAllCategories,
   getAllConditions,
+  getPendingAssets,
+  reviewAsset,
 };

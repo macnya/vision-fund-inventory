@@ -195,3 +195,41 @@ export async function createAssignment({ asset_id, employee_id, location_id, lat
   const res = await api.post('/assignments', { asset_id, employee_id, location_id, latitude, longitude });
   return res.data;
 }
+
+// --- Approvals ------------------------------------------------------------
+// Drives the badge in the navigation. Returns only what the caller may
+// actually review — their own submissions are excluded server-side.
+export async function fetchPendingCount() {
+  const res = await api.get('/verifications/pending/count');
+  return res.data;
+}
+
+export async function fetchPendingVerifications() {
+  const res = await api.get('/verifications', { params: { status: 'pending' } });
+  return res.data;
+}
+
+export async function fetchPendingAssets() {
+  const res = await api.get('/assets/pending');
+  return res.data;
+}
+
+export async function approveVerification(id) {
+  const res = await api.post(`/verifications/${id}/approve`);
+  return res.data;
+}
+
+export async function rejectVerification(id, reason) {
+  const res = await api.post(`/verifications/${id}/reject`, { reason });
+  return res.data;
+}
+
+export async function approveAsset(assetCode) {
+  const res = await api.post(`/assets/${encodeURIComponent(assetCode)}/approve`);
+  return res.data;
+}
+
+export async function rejectAsset(assetCode, reason) {
+  const res = await api.post(`/assets/${encodeURIComponent(assetCode)}/reject`, { reason });
+  return res.data;
+}
