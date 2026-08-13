@@ -67,7 +67,7 @@ export default function Dashboard({ onNavigate }) {
         <Stat label="Disposed"     value={stats.disposed}    onClick={() => onNavigate('list', 'Disposed')} />
         <Stat label="Lost"         value={stats.lost}        onClick={() => onNavigate('list', 'Lost')} />
         <Stat label="Employees"    value={stats.employees} />
-        <Stat label="Branches"     value={stats.branches} />
+        <Stat label="Branches"     value={stats.branches} onClick={() => onNavigate('branches')} />
       </div>
 
       <div className="dash-grid">
