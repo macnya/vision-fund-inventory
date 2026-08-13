@@ -3,6 +3,8 @@
 
    Classes rather than inline styles, so the panel is responsive and the same
    patterns aren't redeclared on every page.
+
+   The responsive block is LAST, so its overrides always win.
 --------------------------------------------------------------------------- */
 
 /* --- Shell --------------------------------------------------------------- */
@@ -42,6 +44,34 @@
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
 .page-title { font-size: 1.5rem; }
 .page-sub { color: var(--ink-soft); font-size: 0.9rem; margin-top: 0.25rem; }
+
+/* --- Menu toggle ---------------------------------------------------------
+   Hidden on desktop; the responsive block below reveals it. Drawn in CSS
+   rather than pulled from an icon library — three lines and a cross is not
+   worth a dependency.
+------------------------------------------------------------------------- */
+.nav-toggle {
+  display: none;
+  width: 42px; height: 42px;
+  border-radius: var(--r-sm);
+  align-items: center; justify-content: center;
+  flex-shrink: 0; margin-left: auto;
+}
+.nav-toggle:hover { background: var(--surface); }
+
+.nav-toggle-bars, .nav-toggle-bars::before, .nav-toggle-bars::after {
+  display: block; width: 20px; height: 2px;
+  background: var(--ink); border-radius: 2px;
+  transition: transform 0.18s, opacity 0.18s;
+}
+.nav-toggle-bars { position: relative; }
+.nav-toggle-bars::before, .nav-toggle-bars::after { content: ''; position: absolute; left: 0; }
+.nav-toggle-bars::before { top: -6px; }
+.nav-toggle-bars::after  { top: 6px; }
+
+.nav-toggle-bars.is-open { background: transparent; }
+.nav-toggle-bars.is-open::before { top: 0; transform: rotate(45deg); }
+.nav-toggle-bars.is-open::after  { top: 0; transform: rotate(-45deg); }
 
 /* --- Buttons ------------------------------------------------------------- */
 .btn {
@@ -97,6 +127,36 @@
 .stat-value { font-size: 1.85rem; font-weight: 700; margin-top: 0.3rem; letter-spacing: -0.02em; }
 .stat-value.is-accent { color: var(--orange); }
 
+.stat.is-link {
+  display: block; width: 100%; text-align: left;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+}
+.stat.is-link:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--ink-faint); }
+
+/* --- Dashboard ----------------------------------------------------------- */
+.dash-grid {
+  display: grid; gap: 1rem; margin-top: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.dash-pie { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+.pie {
+  width: 150px; height: 150px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(20, 24, 31, 0.06);
+}
+.legend { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 11rem; }
+.legend li { display: flex; align-items: center; gap: 0.55rem; padding: 0.25rem 0; font-size: 0.85rem; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-name { flex: 1; color: var(--ink-soft); }
+.legend-count { font-weight: 650; font-variant-numeric: tabular-nums; }
+
+.bar-row { margin-bottom: 0.7rem; }
+.bar-head { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.25rem; }
+.bar-name { color: var(--ink-soft); }
+.bar-count { font-weight: 650; font-variant-numeric: tabular-nums; }
+.bar-track { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--orange); border-radius: 999px; }
+
 /* --- Toolbar / filters --------------------------------------------------- */
 .toolbar { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
 .toolbar-search { flex: 1 1 260px; display: flex; gap: 0.6rem; }
@@ -118,6 +178,12 @@
 .table tbody tr.is-clickable { cursor: pointer; }
 .table tbody tr.is-clickable:hover { background: var(--surface); }
 .code { font-family: var(--mono); font-size: 0.85rem; letter-spacing: 0.02em; font-weight: 600; }
+
+.cell-sub { font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.15rem; }
+.cell-corrected {
+  font-size: 0.75rem; color: var(--warn); font-style: italic; margin-top: 0.2rem;
+}
+.table td input, .table td select { min-width: 9rem; }
 
 /* --- Badges -------------------------------------------------------------- */
 .badge {
@@ -150,6 +216,7 @@
 .notice-info  { background: var(--navy-bg); color: var(--navy); }
 
 .empty { text-align: center; padding: 2.5rem 1rem; color: var(--ink-faint); }
+.muted { color: var(--ink-faint); font-style: italic; }
 
 /* --- Login --------------------------------------------------------------- */
 .login { min-height: 100svh; display: grid; place-items: center; padding: 1.5rem; background: var(--surface); }
@@ -159,39 +226,15 @@
   padding: 2.25rem; box-shadow: var(--shadow-lg);
 }
 .login-logo { height: 42px; display: block; margin: 0 auto 1.5rem; }
+
+/* --- Forms --------------------------------------------------------------- */
 .field { margin-bottom: 1rem; }
+.field:last-child { margin-bottom: 0; }
 .field label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--ink); }
 .field-hint { font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.3rem; }
-
-/* --- Dashboard ----------------------------------------------------------- */
-.stat.is-link {
-  display: block; width: 100%; text-align: left;
-  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
-}
-.stat.is-link:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--ink-faint); }
-
-.dash-grid {
-  display: grid; gap: 1rem; margin-top: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-}
-
-.dash-pie { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
-.pie {
-  width: 150px; height: 150px; border-radius: 50%; flex-shrink: 0;
-  box-shadow: inset 0 0 0 1px rgba(20, 24, 31, 0.06);
-}
-.legend { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 11rem; }
-.legend li { display: flex; align-items: center; gap: 0.55rem; padding: 0.25rem 0; font-size: 0.85rem; }
-.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.legend-name { flex: 1; color: var(--ink-soft); }
-.legend-count { font-weight: 650; font-variant-numeric: tabular-nums; }
-
-.bar-row { margin-bottom: 0.7rem; }
-.bar-head { display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.25rem; }
-.bar-name { color: var(--ink-soft); }
-.bar-count { font-weight: 650; font-variant-numeric: tabular-nums; }
-.bar-track { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
-.bar-fill { height: 100%; background: var(--orange); border-radius: 999px; }
+.form-page { max-width: 40rem; }
+.form-row { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
+input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
 
 /* --- Asset list ---------------------------------------------------------- */
 .page-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
@@ -211,25 +254,6 @@
 .locked-note {
   font-size: 0.8rem; color: var(--ink-faint); line-height: 1.5;
   margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px solid var(--rule);
-}
-.muted { color: var(--ink-faint); font-style: italic; }
-input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
-
-/* --- Table cell detail --------------------------------------------------- */
-.cell-sub { font-size: 0.78rem; color: var(--ink-faint); margin-top: 0.15rem; }
-.cell-corrected {
-  font-size: 0.75rem; color: var(--warn); font-style: italic; margin-top: 0.2rem;
-}
-.table td input, .table td select { min-width: 9rem; }
-
-/* --- Forms --------------------------------------------------------------- */
-.form-page { max-width: 40rem; }
-.form-row { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
-.field:last-child { margin-bottom: 0; }
-input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
-
-@media (max-width: 560px) {
-  .form-row { grid-template-columns: 1fr; }
 }
 
 /* --- Branches ------------------------------------------------------------ */
@@ -268,18 +292,49 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
 .branch-item-count { font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* --- Responsive ----------------------------------------------------------
-   Below 720px the table collapses to stacked cards. A six-column table on a
-   phone is either unreadable or a horizontal-scroll puzzle; each row becomes
-   its own block with the header text supplied by data-label.
-
-   This block stays last so its overrides win regardless of what's added above.
+   Everything below is an override, so this block stays last.
 ------------------------------------------------------------------------- */
-@media (max-width: 900px) {
-  .topbar-inner { flex-wrap: wrap; gap: 0.75rem; }
-  .nav { order: 3; width: 100%; }
-  .topbar-user { margin-left: auto; }
+
+/* The nav used to wrap onto the same row as the account controls and get cut
+   off at the right edge. Below 860px both collapse into a panel instead. */
+@media (max-width: 860px) {
+  .topbar-inner { flex-wrap: wrap; gap: 0; padding: 0.6rem 1rem; }
+  .brand img { height: 30px; }
+
+  .nav-toggle { display: flex; }
+
+  .nav, .topbar-user {
+    display: none;
+    order: 3;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+  }
+  .nav.is-open, .topbar-user.is-open { display: flex; }
+
+  .nav.is-open {
+    padding-top: 0.75rem;
+    margin-top: 0.6rem;
+    border-top: 1px solid var(--rule);
+  }
+  .nav .nav-item { padding: 0.7rem 0.75rem; font-size: 0.95rem; text-align: left; }
+
+  .topbar-user.is-open {
+    padding: 0.75rem 0 0.35rem;
+    margin-top: 0.6rem;
+    border-top: 1px solid var(--rule);
+    gap: 0.5rem;
+  }
+  /* Name and branch read as a heading for the account block, not as controls. */
+  .topbar-user .badge { align-self: flex-start; }
+  .topbar-name { font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+  .topbar-user .btn { width: 100%; justify-content: center; }
 }
 
+/* Below 720px the table collapses to stacked cards. A six-column table on a
+   phone is either unreadable or a horizontal-scroll puzzle; each row becomes
+   its own block with the header text supplied by data-label. */
 @media (max-width: 720px) {
   .page { padding: 1.25rem 0.9rem 2.5rem; }
   .page-title { font-size: 1.25rem; }
@@ -306,4 +361,15 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
 
   .filters { width: 100%; }
   .filters select { flex: 1 1 45%; min-width: 0; }
+
+  /* Branch cards: the count and button stack under the name rather than
+     squeezing against it. */
+  .branch-head { flex-direction: column; align-items: stretch; gap: 0.6rem; }
+  .branch-meta { justify-content: space-between; }
+  .branch-body { grid-template-columns: 1fr; gap: 0.9rem; }
+}
+
+@media (max-width: 560px) {
+  .form-row { grid-template-columns: 1fr; }
+  .page-actions .btn { flex: 1 1 auto; }
 }

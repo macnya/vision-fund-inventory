@@ -12,10 +12,10 @@ import CreateAsset from './pages/CreateAsset';
 import VerificationReport from './pages/VerificationReport';
 import AssetLocations from './pages/AssetLocation';
 import ChangePassword from './pages/ChangePassword';
+import Branches from './pages/Branches';
 import { refreshSession } from './api';
 import { isAdmin, canCreateAssets, canManageRecords } from './roles';
 import logo from './assets/logo.png';
-import Branches from './pages/Branches';
 
 const TABS = [
   { key: 'dashboard',     label: 'Dashboard' },
@@ -33,6 +33,7 @@ function App() {
   const [listInitialStatus, setListInitialStatus] = useState('');
   const [listInitialBranch, setListInitialBranch] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -78,16 +79,21 @@ function App() {
     );
   }
 
+  // Every navigation closes the menu. On a phone the panel covers the content,
+  // so leaving it open after a tap would hide the thing just navigated to.
+  const go = (nextView) => { setView(nextView); setMenuOpen(false); };
+
   const openAsset = (code) => { setSelectedAssetCode(code); setView('detail'); };
+
   // Both the dashboard tiles and the Branches page open the asset list with a
   // filter already applied, so the numbers you clicked and the rows you land on
   // are the same set.
   const openList = ({ status = '', branch = '' } = {}) => {
     setListInitialStatus(status);
     setListInitialBranch(branch);
-    setView('list');
+    go('list');
   };
-  
+
   let content;
   if (view === 'detail') {
     content = <AssetDetail assetCode={selectedAssetCode} onBack={() => setView('list')} />;
@@ -112,7 +118,7 @@ function App() {
   } else if (view === 'newUser') {
     content = isAdmin(user)
       ? <CreateUser onBack={() => setView('users')}
-          onCreated={() => { alert('IT staff account created'); setView('users'); }} />
+          onCreated={() => { alert('Staff account created'); setView('users'); }} />
       : <AccessDenied />;
 
   } else if (view === 'newAsset') {
@@ -125,7 +131,7 @@ function App() {
         }}
       />
     );
-  
+
   } else if (view === 'branches') {
     content = <Branches onSelectBranch={(branch) => openList({ branch })} />;
 
@@ -168,19 +174,31 @@ function App() {
             <img src={logo} alt="Vision Fund Kenya" />
           </div>
 
-          <nav className="nav">
+          {/* Below 860px the nav and the account controls collapse behind this.
+              They were previously wrapping onto the same row and being cut off
+              at the right edge. */}
+          <button
+            className="nav-toggle"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          >
+            <span className={menuOpen ? 'nav-toggle-bars is-open' : 'nav-toggle-bars'} />
+          </button>
+
+          <nav className={menuOpen ? 'nav is-open' : 'nav'}>
             {TABS.filter((t) => !t.adminOnly || isAdmin(user)).map((t) => (
               <button
                 key={t.key}
                 className={view === t.key ? 'nav-item is-active' : 'nav-item'}
-                onClick={() => setView(t.key)}
+                onClick={() => go(t.key)}
               >
                 {t.label}
               </button>
             ))}
           </nav>
 
-          <div className="topbar-user">
+          <div className={menuOpen ? 'topbar-user is-open' : 'topbar-user'}>
             {user.branch && <span className="badge badge-navy">{user.branch}</span>}
 
             {/* Plain text, not a button. Clicking your own name and landing on
@@ -189,7 +207,10 @@ function App() {
               {user.name}
             </span>
 
-            <button className="btn btn-ghost btn-sm" onClick={() => setChangingPassword(true)}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => { setChangingPassword(true); setMenuOpen(false); }}
+            >
               Change password
             </button>
             <button className="btn btn-secondary btn-sm" onClick={handleLogout}>Log out</button>
@@ -208,7 +229,7 @@ function AccessDenied() {
       <div className="card">
         <div className="card-body">
           <h2>Not available for your role</h2>
-          <p className="page-sub">Ask an IT Admin if you need access to this section.</p>
+          <p className="page-sub">Ask an Admin if you need access to this section.</p>
         </div>
       </div>
     </div>
