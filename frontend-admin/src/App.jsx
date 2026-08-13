@@ -166,11 +166,16 @@ function App() {
           </nav>
 
           <div className="topbar-user">
-            {/* A scoped role should never be in any doubt that they're seeing
-                part of the register rather than all of it. */}
             {user.branch && <span className="badge badge-navy">{user.branch}</span>}
-            <button className="btn btn-ghost btn-sm" onClick={() => setChangingPassword(true)}>
+
+            {/* Plain text, not a button. Clicking your own name and landing on
+                a password form is a surprise; the action gets its own control. */}
+            <span className="topbar-name" title={`${user.email} · ${user.role}`}>
               {user.name}
+            </span>
+
+            <button className="btn btn-ghost btn-sm" onClick={() => setChangingPassword(true)}>
+              Change password
             </button>
             <button className="btn btn-secondary btn-sm" onClick={handleLogout}>Log out</button>
           </div>
