@@ -74,8 +74,27 @@ function toDateString(value) {
 
 function toNumber(value) {
   if (value === undefined || value === null || value === '') return null;
-  const n = Number(value);
-  return isNaN(n) ? null : n;
+  // Money sometimes arrives as "1,234.50" or "KES 1,234", where a bare Number()
+  // gives NaN and the value is silently lost.
+  const cleaned = typeof value === 'string' ? value.replace(/[^0-9.-]/g, '') : value;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+// A number of years is a small number. On the Non-Capitalized sheet that column
+// holds phone numbers, IMEIs and a serial ("CODE: 23K1G03CN00W"), none of which
+// are years — and 254742876196 overflows NUMERIC(6,2), which aborts the whole
+// import. Anything implausible is dropped and reported rather than written.
+const rejectedYears = [];
+
+function toYears(value, assetCode) {
+  const n = toNumber(value);
+  if (n === null) return null;
+  if (n < 0 || n > 100) {
+    rejectedYears.push({ assetCode, value });
+    return null;
+  }
+  return n;
 }
 
 async function run() {
@@ -123,6 +142,7 @@ async function run() {
 
   let totalImported = 0;
   let totalSkipped = 0;
+  let totalUnchanged = 0;
 
   for (const config of sheetConfigs) {
     const sheet = workbook.Sheets[config.sheetName];
@@ -131,7 +151,16 @@ async function run() {
       continue;
     }
 
-    const rows = xlsx.utils.sheet_to_json(sheet, { defval: null });
+    // Excel pads the header of numeric columns in this workbook:
+    // ' PURCHASE PRICE ', ' NBV ', ' No. OF YEARS ' all carry a leading and
+    // trailing space, while every text column is clean. Without this trim,
+    // row['PURCHASE PRICE'] is undefined, toNumber turns that into null, and
+    // the insert accepts it — which is how the register ended up holding 154
+    // prices out of 2,311 and reporting a total value of KES 2.5m instead of
+    // KES 165m. Nothing complained at any point.
+    const rows = xlsx.utils.sheet_to_json(sheet, { defval: null }).map((r) =>
+      Object.fromEntries(Object.entries(r).map(([k, v]) => [k.trim(), v]))
+    );
     const categoryId = categoryMap[config.category];
 
     if (!categoryId) {
@@ -176,8 +205,8 @@ async function run() {
             toDateString(row[c.purchaseDate]),
             toNumber(row[c.price]),
             row[c.supplier] || null,
-            c.years ? toNumber(row[c.years]) : null,
-            c.remLife ? toNumber(row[c.remLife]) : null,
+            c.years ? toYears(row[c.years], assetCode) : null,
+            c.remLife ? toYears(row[c.remLife], assetCode) : null,
             c.monthlyDep ? toNumber(row[c.monthlyDep]) : null,
             c.accDep ? toNumber(row[c.accDep]) : null,
             c.nbv ? toNumber(row[c.nbv]) : null,
@@ -189,7 +218,12 @@ async function run() {
         );
 
         if (assetResult.rows.length === 0) {
-          totalSkipped++; // duplicate asset_code
+          // ON CONFLICT DO NOTHING means this row ALREADY EXISTED and nothing
+          // was updated. Reported as such rather than as a "duplicate", which
+          // read like the importer had done its job — it had not, and that is
+          // why missing prices went unnoticed for so long. To correct existing
+          // rows, use backfillAssetValues.js.
+          totalUnchanged++;
           continue;
         }
 
@@ -232,7 +266,23 @@ async function run() {
     console.log(`  ${ASSET_CONDITIONS.join(', ')}`);
   }
 
-  console.log(`\nDone. Total imported: ${totalImported}, skipped: ${totalSkipped}`);
+  if (rejectedYears.length > 0) {
+    console.log(`\n${rejectedYears.length} rows had an implausible number of years (stored as NULL):`);
+    rejectedYears.slice(0, 15).forEach((r) => console.log(`  ${r.assetCode}: "${r.value}"`));
+    if (rejectedYears.length > 15) console.log(`  ...and ${rejectedYears.length - 15} more`);
+    console.log('On the Non-Capitalized sheet this column holds phone numbers and IMEIs.');
+    console.log('Those belong in their own field, not in No. OF YEARS.');
+  }
+
+  console.log(`\nDone.`);
+  console.log(`  imported (new rows):        ${totalImported}`);
+  console.log(`  already present, unchanged: ${totalUnchanged}`);
+  console.log(`  skipped (blank or errored): ${totalSkipped}`);
+  if (totalUnchanged > 0) {
+    console.log(`\nThis script only INSERTS. The ${totalUnchanged} rows above already existed and`);
+    console.log('were left exactly as they were — nothing was corrected. Use');
+    console.log('backfillAssetValues.js to fill in fields missing on existing rows.');
+  }
   await pool.end();
 }
 
