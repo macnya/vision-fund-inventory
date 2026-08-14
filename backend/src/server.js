@@ -43,7 +43,7 @@ app.use('/disposals', disposalRoutes);
 app.use('/lost-assets', lostAssetRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/clearances', require('./routes/clearanceRoutes'));
-app.use('/clearances', require('./routes/clearanceRoutes'));
+
 
 // 404 for unknown routes
 app.use((req, res) => {
