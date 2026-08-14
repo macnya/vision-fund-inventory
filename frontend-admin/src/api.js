@@ -233,3 +233,37 @@ export async function rejectAsset(assetCode, reason) {
   const res = await api.post(`/assets/${encodeURIComponent(assetCode)}/reject`, { reason });
   return res.data;
 }
+
+// --- Exit clearance -------------------------------------------------------
+// Implements HR Manual 8.10.1 and 8.10.2.
+export async function fetchClearances(status) {
+  const res = await api.get('/clearances', { params: status ? { status } : {} });
+  return res.data;
+}
+
+export async function fetchClearance(id) {
+  const res = await api.get(`/clearances/${id}`);
+  return res.data;
+}
+
+// What someone holds right now — shown before a clearance is opened, so P&C
+// can see what they are committing to chase.
+export async function fetchEmployeeHoldings(employeeId) {
+  const res = await api.get(`/clearances/holdings/${employeeId}`);
+  return res.data;
+}
+
+export async function openClearance(payload) {
+  const res = await api.post('/clearances', payload);
+  return res.data;
+}
+
+export async function resolveClearanceItem(clearanceId, itemId, outcome, notes) {
+  const res = await api.patch(`/clearances/${clearanceId}/items/${itemId}`, { outcome, notes });
+  return res.data;
+}
+
+export async function completeClearance(id) {
+  const res = await api.post(`/clearances/${id}/complete`);
+  return res.data;
+}

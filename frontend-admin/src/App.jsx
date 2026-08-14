@@ -17,6 +17,7 @@ import Approvals from './pages/Approvals';
 import { refreshSession, fetchPendingCount } from './api';
 import { isAdmin, canCreateAssets, canManageRecords } from './roles';
 import logo from './assets/logo.png';
+import Clearances from './pages/Clearances';
 
 const TABS = [
   { key: 'dashboard',     label: 'Dashboard' },
@@ -24,6 +25,7 @@ const TABS = [
   { key: 'branches',      label: 'Branches' },
   { key: 'locations',     label: 'Map' },
   { key: 'verifications', label: 'Verifications' },
+  { key: 'clearances',    label: 'Exit clearance' },
   { key: 'approvals',     label: 'Approvals', adminOnly: true, badge: true },
   { key: 'users',         label: 'Staff accounts', adminOnly: true },
 ];
@@ -157,6 +159,9 @@ function App() {
 
   } else if (view === 'branches') {
     content = <Branches onSelectBranch={(branch) => openList({ branch })} />;
+
+  } else if (view === 'clearances') {
+    content = <Clearances canManage={isAdmin(user)} onSelectAsset={openAsset} />;
 
   } else if (view === 'verifications') {
     content = <VerificationReport />;

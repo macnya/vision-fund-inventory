@@ -309,6 +309,14 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
 }
 .nav-item.is-active .nav-badge { background: var(--paper); color: var(--navy); }
 
+/* --- Exit clearance ------------------------------------------------------- */
+.clearance-foot {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 1.25rem; flex-wrap: wrap;
+  padding-top: 1rem; margin-top: 0.5rem;
+  border-top: 1px solid var(--rule);
+}
+
 /* --- Responsive ----------------------------------------------------------
    Everything below is an override, so this block stays last.
 ------------------------------------------------------------------------- */
