@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 const { ROLES } = require('../middleware/authMiddleware');
+const crypto = require('crypto');
 
 // One place, so the create form, the self-service change and the admin reset
 // can't disagree. Raised from 6: an admin-issued starter password gets typed
@@ -311,7 +312,80 @@ async function resetUserPassword(req, res) {
   }
 }
 
+// POST /auth/service-token — mint a short-lived token for a trusted service.
+//
+// WHY THIS EXISTS
+// The Slack bot acts on behalf of a member of staff, but has no password for
+// them, so it cannot sign in the normal way. Without this it would have to
+// query the database itself — which is exactly the duplication that let the
+// bot's answers drift from the panel's.
+//
+// WHY IT IS NARROW
+// A shared secret that can mint a token for any user is a powerful thing, so
+// this is deliberately constrained:
+//
+//   - It only ever issues tokens for accounts that already exist.
+//   - Tokens last five minutes, not eight hours. Long enough to answer a
+//     question, not long enough to be worth stealing.
+//   - Every issuance is logged with the email it was issued for, so "who asked
+//     what as whom" is answerable.
+//   - The secret must be at least 32 characters, or the endpoint refuses to
+//     work at all rather than accepting a weak one.
+//
+// The token carries no more authority than the user's own: verifyToken reads
+// role and branch from the database on every request, so a Branch
+// Administrator's service token is scoped exactly as their own session is.
+async function issueServiceToken(req, res) {
+  const secret = process.env.BOT_SERVICE_SECRET;
+  const { service_secret, email } = req.body;
+
+  // Refusing on a weak secret rather than accepting it: a 6-character shared
+  // secret protecting token issuance is worse than no feature.
+  if (!secret || secret.length < 32) {
+    console.error('BOT_SERVICE_SECRET is missing or shorter than 32 characters.');
+    return res.status(503).json({ error: 'Service tokens are not configured on this server' });
+  }
+
+  if (!service_secret || !email) {
+    return res.status(400).json({ error: 'service_secret and email are required' });
+  }
+
+  // Constant-time comparison, so a wrong secret cannot be discovered a
+  // character at a time by measuring how long the check takes.
+  const a = Buffer.from(String(service_secret));
+  const b = Buffer.from(secret);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    console.warn(`Service token refused: bad secret, requested for ${email}`);
+    return res.status(401).json({ error: 'Not authorised' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, email, role, branch FROM it_staff WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: 'No staff account with that email' });
+    }
+
+    const user = rows[0];
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, via: 'service' },
+      process.env.JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+
+    console.log(`Service token issued for ${user.email} (${user.role})`);
+
+    res.json({ token, role: user.role, branch: user.branch });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not issue a service token' });
+  }
+}
+
 module.exports = {
-  register, login, getUsers, updateUserRole, deleteUser, refreshToken,
+  issueServiceToken, register, login, getUsers, updateUserRole, deleteUser, refreshToken,
   changePassword, resetUserPassword,
 };

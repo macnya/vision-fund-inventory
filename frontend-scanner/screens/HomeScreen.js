@@ -60,8 +60,22 @@ export default function HomeScreen({ userName, onScan, onSearchResult, onViewAct
           <Text style={s.secondaryText}>Recent activity</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={s.secondary} onPress={onAsk} activeOpacity={0.7}>
-          <Text style={s.secondaryText}>Ask about the register</Text>
+        {/* Deliberately not a fourth menu item. The other three are things you
+            do to an asset; this is something you talk to, and it should look
+            like it rather than disappearing into the list. */}
+        <TouchableOpacity style={s.bot} onPress={onAsk} activeOpacity={0.85}>
+          <View style={s.botAvatar}>
+            <View style={s.botEyeRow}>
+              <View style={s.botEye} />
+              <View style={s.botEye} />
+            </View>
+            <View style={s.botMouth} />
+          </View>
+          <View style={s.botCopy}>
+            <Text style={s.botTitle}>Ask the register</Text>
+            <Text style={s.botSub}>Assets, custody and policy</Text>
+          </View>
+          <View style={s.botDot} />
         </TouchableOpacity>
       </View>
 
@@ -131,6 +145,33 @@ const s = StyleSheet.create({
     paddingVertical: 16, alignItems: 'center', marginBottom: 12,
   },
   secondaryText: { color: c.ink, fontSize: 15, fontWeight: '600' },
+
+  // A card rather than a button, tinted navy so it reads as a companion to the
+  // actions above rather than one of them.
+  bot: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: c.navy, borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 14,
+    marginTop: 6,
+  },
+  botAvatar: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: c.orange,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 13,
+  },
+  // A face drawn from three views. An icon library for one glyph would be a
+  // dependency the app does not otherwise need.
+  botEyeRow: { flexDirection: 'row', gap: 6, marginBottom: 5 },
+  botEye: { width: 5, height: 5, borderRadius: 3, backgroundColor: c.paper },
+  botMouth: { width: 14, height: 2.5, borderRadius: 2, backgroundColor: c.paper, opacity: 0.85 },
+
+  botCopy: { flex: 1 },
+  botTitle: { color: c.paper, fontSize: 15.5, fontWeight: '700' },
+  botSub: { color: 'rgba(255,255,255,0.62)', fontSize: 12, marginTop: 2 },
+  // A small live dot rather than a chevron: this opens a conversation, not
+  // another page.
+  botDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4ADE80', marginLeft: 8 },
 
   logout: { alignItems: 'center', paddingVertical: 18 },
   logoutText: { color: c.inkSoft, fontSize: 14, fontWeight: '500' },

@@ -44,5 +44,10 @@ router.delete('/users/:id', verifyToken, requireAdmin, deleteUser);
 // Sets a temporary password and forces a change on next sign-in.
 router.post('/users/:id/reset-password', verifyToken, requireAdmin, resetUserPassword);
 
+// Not behind verifyToken — this is how a service gets a token in the first
+// place. Rate limited on IP, because the shared secret is the only thing
+// standing in front of it.
+router.post('/service-token', perIpLoginLimiter, issueServiceToken);
+
 
 module.exports = router;
