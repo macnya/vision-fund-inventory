@@ -64,4 +64,7 @@ const changePasswordLimiter = rateLimit({
   },
 });
 
-module.exports = { loginLimiter, changePasswordLimiter };
+// perIpLoginLimiter is exported on its own for the service-token endpoint,
+// which is keyed by caller rather than by account: there is no email to key on
+// until the request has already been trusted.
+module.exports = { loginLimiter, perIpLoginLimiter, changePasswordLimiter };

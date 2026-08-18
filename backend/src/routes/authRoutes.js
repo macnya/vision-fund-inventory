@@ -8,6 +8,7 @@ const {
   updateUserRole,
   deleteUser,
   refreshToken,
+  issueServiceToken,
   changePassword,
   resetUserPassword,
 } = require('../controllers/authController');
@@ -17,7 +18,7 @@ const {
   requireAdmin,
 } = require('../middleware/authMiddleware');
 
-const { loginLimiter, changePasswordLimiter } = require('../middleware/rateLimiter');
+const { loginLimiter, perIpLoginLimiter, changePasswordLimiter } = require('../middleware/rateLimiter');
 
 // Public route
 router.post('/login', loginLimiter, login);
