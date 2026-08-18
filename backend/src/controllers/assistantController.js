@@ -228,6 +228,107 @@ async function policyAnswer(question) {
   return rows.filter((r) => Number(r.score) >= best - 1);
 }
 
+// Assets in a given condition. "Show me the faulty equipment" is a question the
+// register can answer and previously could not.
+async function byCondition(condition, scope) {
+  const { rows } = await pool.query(
+    `SELECT a.asset_code, a.description, a.condition,
+            ac.name AS category, l.branch, e.name AS holder
+     FROM asset a
+     LEFT JOIN asset_category ac ON ac.id = a.asset_category_id
+     LEFT JOIN assignment ag ON ag.asset_id = a.id AND ag.returned_date IS NULL
+     LEFT JOIN employee e ON e.id = ag.employee_id
+     LEFT JOIN location l ON l.id = ag.location_id
+     WHERE a.condition = $1
+       AND a.approval_status = 'approved'
+       AND ($2::text IS NULL OR l.branch = $2)
+     ORDER BY a.purchase_price DESC NULLS LAST
+     LIMIT 25`,
+    [condition, scope]
+  );
+  return rows;
+}
+
+// How far through verification the organisation is. The register's own answer
+// to "has anybody actually looked at any of this?"
+async function verificationCoverage(scope) {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(l.branch, 'No branch recorded') AS branch,
+            COUNT(DISTINCT a.id)::int AS total,
+            COUNT(DISTINCT a.id) FILTER (WHERE a.condition IS NOT NULL)::int AS verified
+     FROM asset a
+     LEFT JOIN assignment ag ON ag.asset_id = a.id AND ag.returned_date IS NULL
+     LEFT JOIN location l ON l.id = ag.location_id
+     WHERE a.approval_status = 'approved'
+       AND ($1::text IS NULL OR l.branch = $1)
+     GROUP BY l.branch
+     ORDER BY total DESC
+     LIMIT 15`,
+    [scope]
+  );
+  return rows;
+}
+
+// Totals by category, so "which category is worth most" has an answer.
+async function byCategory(scope) {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(ac.name, 'Uncategorised') AS category,
+            COUNT(DISTINCT a.id)::int AS assets,
+            COALESCE(SUM(a.purchase_price), 0)::numeric AS value
+     FROM asset a
+     LEFT JOIN asset_category ac ON ac.id = a.asset_category_id
+     LEFT JOIN assignment ag ON ag.asset_id = a.id AND ag.returned_date IS NULL
+     LEFT JOIN location l ON l.id = ag.location_id
+     WHERE a.approval_status = 'approved'
+       AND ($1::text IS NULL OR l.branch = $1)
+     GROUP BY ac.name
+     ORDER BY value DESC NULLS LAST`,
+    [scope]
+  );
+  return rows;
+}
+
+// Every branch ranked, for "which branch has the most" questions.
+async function branchRanking(scope) {
+  const { rows } = await pool.query(
+    `SELECT l.branch,
+            COUNT(DISTINCT a.id)::int AS assets,
+            COALESCE(SUM(a.purchase_price), 0)::numeric AS value
+     FROM asset a
+     JOIN assignment ag ON ag.asset_id = a.id AND ag.returned_date IS NULL
+     JOIN location l ON l.id = ag.location_id
+     WHERE a.approval_status = 'approved'
+       AND ($1::text IS NULL OR l.branch = $1)
+     GROUP BY l.branch
+     ORDER BY assets DESC
+     LIMIT 15`,
+    [scope]
+  );
+  return rows;
+}
+
+// Assets held by people who have left, or are leaving. Directly the question
+// HR Manual 8.10.2 makes somebody answer.
+async function heldByLeavers(scope) {
+  const { rows } = await pool.query(
+    `SELECT e.name, e.employment_status, e.last_working_day,
+            COUNT(a.id)::int AS assets,
+            COALESCE(SUM(a.purchase_price), 0)::numeric AS value
+     FROM assignment ag
+     JOIN employee e ON e.id = ag.employee_id
+     JOIN asset a ON a.id = ag.asset_id
+     LEFT JOIN location l ON l.id = ag.location_id
+     WHERE ag.returned_date IS NULL
+       AND e.employment_status <> 'active'
+       AND a.approval_status = 'approved'
+       AND ($1::text IS NULL OR l.branch = $1)
+     GROUP BY e.id, e.name, e.employment_status, e.last_working_day
+     ORDER BY value DESC`,
+    [scope]
+  );
+  return rows;
+}
+
 // ---------------------------------------------------------------------------
 
 const money = (v) =>
@@ -235,9 +336,16 @@ const money = (v) =>
     ? 'no value recorded'
     : `KES ${Number(v).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`;
 
-// Policy topics are checked BEFORE anything counting assets, because "how many
-// days annual leave" contains "how many" and would otherwise be treated as a
-// stock question and answered from an empty context.
+// Recognised in a question so "show me the faulty equipment" reaches a query
+// rather than a phrase pattern.
+const CONDITIONS = [
+  { match: 'faulty',            value: 'Faulty' },
+  { match: 'broken',            value: 'Faulty' },
+  { match: 'good with issues',  value: 'Good with issues' },
+  { match: 'needs repair',      value: 'Good with issues' },
+  { match: 'in good condition', value: 'Good' },
+];
+
 const POLICY_WORDS = [
   'leave', 'holiday', 'maternity', 'paternity', 'sick', 'compassionate',
   'bereavement', 'remote', 'work from home', 'exam', 'notice period', 'resign',
@@ -271,22 +379,25 @@ async function ask(req, res) {
     let data = '';
     let sources = [];
 
-    // ---- policy, first ----
-    if (POLICY_WORDS.some((w) => lower.includes(w))) {
-      const entries = await policyAnswer(text);
-      data = entries.length
-        ? entries.map((e) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
-        : 'NOTHING FOUND. Say this is not documented here and suggest asking P&C or ICT.';
-      sources = entries.map((e) => e.question);
-    }
+    // ROUTING, MOST SPECIFIC FIRST.
+    //
+    // An earlier version tested phrase patterns before looking for a branch
+    // name, so "what assets are at Head Office?" matched the people pattern,
+    // went looking for an employee called Head Office, and failed. Anything
+    // that names a concrete thing — an asset code, a branch, a condition — now
+    // wins over a phrase, because a named thing is better evidence of intent
+    // than a form of words.
 
-    // ---- a specific asset ----
-    else if (/\b(?:vfk|kdt|nc|eqp|c&p|f&f|int)[\s\-\/]?\d{3,6}\b/i.test(text)) {
+    const branch = await findBranch(text);
+    const hasCode = /\b(?:vfk|kdt|nc|eqp|c&p|f&f|int)[\s\-\/]?\d{3,6}\b/i.test(text);
+    const condition = CONDITIONS.find((cn) => lower.includes(cn.match));
+    const isPolicy = POLICY_WORDS.some((w) => lower.includes(w)) && !branch && !hasCode;
+
+    // ---- 1. a specific asset code -----------------------------------------
+    if (hasCode) {
       const found = await assetByCode(text, scope);
-      if (!found) {
-        data = 'No asset code was recognised in the question.';
-      } else if (!found.asset) {
-        data = `${found.code} is not in the records available to you.`;
+      if (!found?.asset) {
+        data = `${found?.code || 'That code'} is not in the records available to you.`;
       } else {
         const a = found.asset;
         data =
@@ -301,10 +412,88 @@ async function ask(req, res) {
       }
     }
 
-    // ---- what does a person hold ----
-    else if (/what (?:assets?|equipment|devices?|items?)|who (?:has|holds)|assigned to|issued to/i.test(lower)) {
-      // Read-only roles see this in the panel too, so no extra gate here — but
-      // the branch scope still applies.
+    // ---- 2. policy ---------------------------------------------------------
+    else if (isPolicy) {
+      const entries = await policyAnswer(text);
+      data = entries.length
+        ? entries.map((e) => `Q: ${e.question}\nA: ${e.answer}`).join('\n\n')
+        : 'NOTHING FOUND. Say this is not documented here and suggest asking P&C or ICT.';
+      sources = entries.map((e) => e.question);
+    }
+
+    // ---- 3. assets in a given condition ------------------------------------
+    else if (condition) {
+      const rows = await byCondition(condition.value, scope);
+      data = rows.length
+        ? `${rows.length}${rows.length === 25 ? '+' : ''} assets recorded as ${condition.value}` +
+          `${scope ? ` at ${scope}` : ''}:\n` +
+          rows.slice(0, 15).map((r) =>
+            `${r.asset_code} — ${r.description} (${r.branch || 'no branch'}${r.holder ? `, ${r.holder}` : ''})`
+          ).join('\n')
+        : `No assets are recorded as ${condition.value}${scope ? ` at ${scope}` : ''}.`;
+    }
+
+    // ---- 4. how much has been verified -------------------------------------
+    else if (/verif|inspect|checked|coverage/i.test(lower)) {
+      const rows = await verificationCoverage(scope);
+      const total = rows.reduce((s2, r) => s2 + r.total, 0);
+      const done = rows.reduce((s2, r) => s2 + r.verified, 0);
+      data =
+        `Verification coverage: ${done} of ${total} assets have a recorded condition.\n` +
+        rows.map((r) => `${r.branch}: ${r.verified} of ${r.total}`).join('\n') +
+        `\n\nNOTE: a condition set at import is not the same as an inspection. ` +
+        `Assets confirmed in person are those with a verification record.`;
+    }
+
+    // ---- 5. assets held by people who have left ----------------------------
+    else if (/left|leaver|departed|exit|resigned|no longer/i.test(lower)) {
+      const rows = await heldByLeavers(scope);
+      const total = rows.reduce((s2, r) => s2 + Number(r.value || 0), 0);
+      data = rows.length
+        ? `${rows.length} people who are leaving or have left still hold assets, worth ${money(total)}:\n` +
+          rows.map((r) =>
+            `${r.name} (${r.employment_status}${r.last_working_day ? `, last day ${r.last_working_day}` : ''}) — ` +
+            `${r.assets} asset${r.assets === 1 ? '' : 's'}, ${money(r.value)}`
+          ).join('\n')
+        : 'Nobody recorded as leaving or departed is currently holding assets.';
+    }
+
+    // ---- 6. by category ----------------------------------------------------
+    else if (/categor|type of asset|what kind|breakdown/i.test(lower) && !branch) {
+      const rows = await byCategory(scope);
+      const total = rows.reduce((s2, r) => s2 + Number(r.value || 0), 0);
+      data =
+        `${scope ? `${scope}, by` : 'The whole register, by'} category — total ${money(total)}:\n` +
+        rows.map((r) => `${r.category}: ${r.assets} assets, ${money(r.value)}`).join('\n');
+    }
+
+    // ---- 7. which branch has the most --------------------------------------
+    else if (/which branch|most assets|largest|ranking|compare branch/i.test(lower)) {
+      const rows = await branchRanking(scope);
+      data = rows.length
+        ? 'Branches by number of assets currently assigned:\n' +
+          rows.map((r) => `${r.branch}: ${r.assets} assets, ${money(r.value)}`).join('\n')
+        : 'No branch holdings found.';
+    }
+
+    // ---- 8. a named branch -------------------------------------------------
+    else if (branch) {
+      if (scope && branch.toLowerCase() !== scope.toLowerCase()) {
+        data = `NOT PERMITTED. This user can only be told about ${scope}. Say so plainly.`;
+      } else {
+        const rows = await branchSummary(branch, scope);
+        const total = rows.reduce((s2, r) => s2 + Number(r.value || 0), 0);
+        const count = rows.reduce((s2, r) => s2 + r.assets, 0);
+        data = rows.length
+          ? `${branch}: ${count} assets currently assigned, worth ${money(total)}.\n` +
+            rows.map((r) => `${r.assets}x ${r.category} (${money(r.value)})`).join('\n')
+          : `No assets are currently assigned at ${branch}.`;
+        sources = [branch];
+      }
+    }
+
+    // ---- 9. a named person -------------------------------------------------
+    else if (/what (?:assets?|equipment|devices?|items?)|who (?:has|holds)|assigned to|issued to|holding/i.test(lower)) {
       const match = await findEmployee(text, scope);
       if (!match) {
         data = 'No staff member matched that name. A full name is needed — a first name alone is too ambiguous.';
@@ -312,7 +501,7 @@ async function ask(req, res) {
         data = `Several people match: ${match.ambiguous.join(', ')}. Ask again with the full name.`;
       } else {
         const held = await employeeHoldings(match.employee.id, scope);
-        const total = held.reduce((s, h) => s + Number(h.purchase_price || 0), 0);
+        const total = held.reduce((s2, h) => s2 + Number(h.purchase_price || 0), 0);
         data = held.length
           ? `${match.employee.name} (${match.employee.branch || 'branch not recorded'}) holds ` +
             `${held.length} asset${held.length === 1 ? '' : 's'}, worth ${money(total)}:\n` +
@@ -325,29 +514,14 @@ async function ask(req, res) {
       }
     }
 
-    // ---- a branch, or the whole register ----
+    // ---- 10. the register as a whole ---------------------------------------
     else {
-      const branch = await findBranch(text);
-
-      if (branch && scope && branch.toLowerCase() !== scope.toLowerCase()) {
-        data = `NOT PERMITTED. This user can only be told about ${scope}. Say so plainly.`;
-      } else if (branch) {
-        const rows = await branchSummary(branch, scope);
-        const total = rows.reduce((s, r) => s + Number(r.value || 0), 0);
-        const count = rows.reduce((s, r) => s + r.assets, 0);
-        data = rows.length
-          ? `${branch}: ${count} assets currently assigned, worth ${money(total)}.\n` +
-            rows.map((r) => `${r.assets}x ${r.category} (${money(r.value)})`).join('\n')
-          : `No assets are currently assigned at ${branch}.`;
-        sources = [branch];
-      } else {
-        const rows = await registerTotals(scope);
-        const total = rows.reduce((s, r) => s + Number(r.value || 0), 0);
-        data =
-          (scope ? `Figures for ${scope} only.\n` : 'Whole register.\n') +
-          rows.map((r) => `${r.status}: ${r.assets} assets (${money(r.value)})`).join('\n') +
-          `\nTotal recorded value: ${money(total)}`;
-      }
+      const rows = await registerTotals(scope);
+      const total = rows.reduce((s2, r) => s2 + Number(r.value || 0), 0);
+      data =
+        (scope ? `Figures for ${scope} only.\n` : 'Whole register.\n') +
+        rows.map((r) => `${r.status}: ${r.assets} assets (${money(r.value)})`).join('\n') +
+        `\nTotal recorded value: ${money(total)}`;
     }
 
     const completion = await client.chat.completions.create({
