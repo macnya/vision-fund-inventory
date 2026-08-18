@@ -68,3 +68,11 @@ export async function fetchVerificationReport(filters = {}) {
   const res = await api.get('/verifications', { params: filters });
   return res.data;
 }
+
+// Questions about the register. The only call in the app that needs a live
+// connection — everything else queues offline, but there is nothing useful to
+// queue about a question.
+export async function askAssistant(question) {
+  const res = await api.post('/assistant', { question });
+  return res.data;
+}

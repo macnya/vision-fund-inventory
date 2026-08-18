@@ -7,13 +7,14 @@ import ScannerScreen from './screens/ScannerScreen';
 import AssetDetailScreen from './screens/AssetDetailScreen';
 import RecentActivityScreen from './screens/RecentActivityScreen';
 import CreateAssetScreen from './screens/CreateAssetScreen';
+import AskScreen from './screens/AskScreen';
 import OfflineBanner from './components/OfflineBanner';
 import { startAutoSync, subscribeToSyncState, processPendingActions } from './offline/syncManager';
 import { getAssetByCodeOffline } from './offline/offlineApi';
 import { wakeServer } from './api';
 
 export default function App() {
-  const [screen, setScreen] = useState('login'); // 'login' | 'home' | 'scanner' | 'assetDetail' | 'activity' | 'createAsset'
+  const [screen, setScreen] = useState('login'); // 'login' | 'home' | 'scanner' | 'assetDetail' | 'activity' | 'createAsset' | 'ask'
   const [assetData, setAssetData] = useState(null);
   const [scannedCode, setScannedCode] = useState('');
   const [userName, setUserName] = useState('');
@@ -129,6 +130,7 @@ export default function App() {
           onScan={() => setScreen('scanner')}
           onSearchResult={handleSearchResult}
           onViewActivity={() => setScreen('activity')}
+          onAsk={() => setScreen('ask')}
           onLogout={handleLogout}
         />
       )}
@@ -151,6 +153,9 @@ export default function App() {
       )}
       {screen === 'activity' && (
         <RecentActivityScreen onBack={handleBackToHome} />
+      )}
+      {screen === 'ask' && (
+        <AskScreen onBack={handleBackToHome} />
       )}
     </SafeAreaView>
   );
