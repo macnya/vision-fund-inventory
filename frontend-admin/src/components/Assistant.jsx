@@ -51,7 +51,7 @@ export default function Assistant({ scopedTo }) {
   if (!open) {
     return (
       <button className="assistant-fab" onClick={() => setOpen(true)} aria-label="Ask about the register">
-        Ask
+        Ask the register
       </button>
     );
   }
