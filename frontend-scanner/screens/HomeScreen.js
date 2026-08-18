@@ -6,7 +6,7 @@ import {
 import { getAssetByCodeOffline } from '../offline/offlineApi';
 import { c, mono } from '../theme';
 
-export default function HomeScreen({ userName, onScan, onSearchResult, onViewActivity, onLogout }) {
+export default function HomeScreen({ userName, onScan, onSearchResult, onViewActivity, onAsk, onLogout }) {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchCode, setSearchCode] = useState('');
   const [searching, setSearching] = useState(false);
@@ -58,6 +58,10 @@ export default function HomeScreen({ userName, onScan, onSearchResult, onViewAct
 
         <TouchableOpacity style={s.secondary} onPress={onViewActivity} activeOpacity={0.7}>
           <Text style={s.secondaryText}>Recent activity</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.secondary} onPress={onAsk} activeOpacity={0.7}>
+          <Text style={s.secondaryText}>Ask about the register</Text>
         </TouchableOpacity>
       </View>
 
