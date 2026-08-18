@@ -20,7 +20,18 @@ const { ROLES, canonicalRole } = require('../middleware/authMiddleware');
 // cannot see anything the caller's own role would not already show them. A
 // prompt-injection attempt reaches a summariser, not a query planner.
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// Constructed lazily. The SDK throws if the key is missing, and doing that at
+// module load took the ENTIRE backend down — the register stopped serving 2,311
+// assets because an optional assistant had no credential. One endpoint
+// returning a clear error is the right failure mode; the API falling over is
+// not.
+let groq = null;
+
+function getGroq() {
+  if (!process.env.GROQ_API_KEY) return null;
+  if (!groq) groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  return groq;
+}
 
 // Retired models 404 at runtime rather than at build time, so this is
 // configurable without a code change.
@@ -223,6 +234,13 @@ async function ask(req, res) {
     return res.status(400).json({ error: 'That question is too long' });
   }
 
+  const client = getGroq();
+  if (!client) {
+    return res.status(503).json({
+      error: 'The assistant is not available on this server. GROQ_API_KEY is not configured.',
+    });
+  }
+
   const text = String(question).trim();
   const lower = text.toLowerCase();
   const scope = branchScopeFor(req);
@@ -311,7 +329,7 @@ async function ask(req, res) {
       }
     }
 
-    const completion = await groq.chat.completions.create({
+    const completion = await client.chat.completions.create({
       model: MODEL,
       max_tokens: 400,
       temperature: 0.2,   // low: this is reporting, not writing

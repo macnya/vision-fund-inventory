@@ -18,6 +18,7 @@ import { refreshSession, fetchPendingCount } from './api';
 import { isAdmin, canCreateAssets, canManageRecords } from './roles';
 import logo from './assets/logo.png';
 import Clearances from './pages/Clearances';
+import Assistant from './components/Assistant';
 
 const TABS = [
   { key: 'dashboard',     label: 'Dashboard' },
@@ -247,6 +248,10 @@ function App() {
       </header>
 
       {content}
+
+      {/* Available on every page. The endpoint scopes answers to this user's
+          own role and branch, so it shows nothing the panel would not. */}
+      <Assistant scopedTo={user.branch} />
     </div>
   );
 }

@@ -267,3 +267,11 @@ export async function completeClearance(id) {
   const res = await api.post(`/clearances/${id}/complete`);
   return res.data;
 }
+
+// Natural-language questions about the register. The endpoint answers within
+// whatever this user's role and branch already permit, so it needs no extra
+// context beyond the token the interceptor already attaches.
+export async function askAssistant(question) {
+  const res = await api.post('/assistant', { question });
+  return res.data;
+}
