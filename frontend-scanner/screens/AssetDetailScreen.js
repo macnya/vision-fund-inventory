@@ -87,14 +87,26 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
     );
   };
 
-  const done = (verb) => (result) => {
+    const done = (verb) => (result) => {
     setShowAssignModal(false);
     setShowVerifyModal(false);
-    Alert.alert(
-      result?.queued ? 'Saved offline' : verb,
-      result?.queued ? "Saved on this phone. It will sync once you're back online." : `${asset.asset_code} updated.`,
-      [{ text: 'OK', onPress: verb === 'Verified' ? onRefresh : onBack }]
-    );
+
+    // The backend returns its own message when something needs approval, because
+    // what happened depends on the workflow rather than the action. Telling an
+    // officer the register was updated when it is waiting for review is worse
+    // than saying nothing — one asset was verified three times in six minutes
+    // because the officer had no way to tell the first attempt had worked.
+    const title = result?.queued ? 'Saved offline'
+                : result?.message ? 'Recorded'
+                : verb;
+
+    const body = result?.queued
+      ? "Saved on this phone. It will sync once you're back online."
+      : result?.message || `${asset.asset_code} updated.`;
+
+    Alert.alert(title, body, [
+      { text: 'OK', onPress: verb === 'Verified' ? onRefresh : onBack },
+    ]);
   };
 
   return (
