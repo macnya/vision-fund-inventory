@@ -196,15 +196,36 @@ async function policyAnswer(question) {
     .split(/\s+/).filter((t) => t.length > 2);
   if (!terms.length) return [];
 
+  // Ranked by how many of the asker's words each entry actually matches.
+  //
+  // An earlier version used LIMIT 3 with no ORDER BY, which returns whichever
+  // rows Postgres finds first — insertion order. The leave entries were seeded
+  // first, so "what do I do with company assets when I leave" got three
+  // annual-leave answers and never saw the clearance entry that matched it
+  // exactly. The model then correctly said it had nothing, which looked like a
+  // gap in the knowledge base rather than a bug in the query.
   const { rows } = await pool.query(
-    `SELECT question, answer FROM knowledge_base
+    `SELECT question, answer,
+            (SELECT COUNT(*) FROM unnest($1::text[]) AS t
+             WHERE LOWER(question) LIKE '%' || t || '%')
+          + (SELECT COUNT(*) FROM unnest($1::text[]) AS t
+             WHERE EXISTS (SELECT 1 FROM unnest(keywords) AS k
+                           WHERE LOWER(k) LIKE '%' || t || '%'))
+            AS score
+     FROM knowledge_base
      WHERE keywords && $1::text[]
         OR EXISTS (SELECT 1 FROM unnest($1::text[]) AS t
                    WHERE LOWER(question) LIKE '%' || t || '%')
+     ORDER BY score DESC, id
      LIMIT 3`,
     [terms]
   );
-  return rows;
+
+  // Only the best match and anything close to it. Passing three loosely-related
+  // entries makes the answer vaguer, not better.
+  if (!rows.length) return [];
+  const best = Number(rows[0].score);
+  return rows.filter((r) => Number(r.score) >= best - 1);
 }
 
 // ---------------------------------------------------------------------------
