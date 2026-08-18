@@ -27,13 +27,10 @@ app.get('/health', (req, res) => res.status(200).json({ status: 'ok', time: new 
 
 app.use('/auth', authRoutes);
 
-// Mounted at '/' because it owns paths under two different prefixes
-// (/assets/:code/verify and /verifications). It has to come BEFORE the
-// '/assets' router: previously it sat after, so verification requests were
-// matched only by falling all the way through the asset router first, which
-// ran verifyToken twice and would have broken silently the moment anyone
-// added a catch-all route to assetRoutes.
-app.use('/', verificationRoutes);
+// Mounted at /verifications, not at root. Mounting at '/' put the verification
+// report on the site root and made router.patch('/:id') catch any PATCH to any
+// path — which would have collided with the asset routes sooner or later.
+app.use('/verifications', verificationRoutes);
 
 app.use('/assets', assetRoutes);
 app.use('/assignments', assignmentRoutes);
