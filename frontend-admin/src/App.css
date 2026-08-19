@@ -432,7 +432,15 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
     align-items: stretch;
     gap: 0.15rem;
   }
-  .nav.is-open, .topbar-user.is-open { display: flex; }
+
+  /* The panel needs its own background and to sit above the page. Without
+     these it opened behind the content and looked like nothing had happened. */
+  .nav.is-open, .topbar-user.is-open {
+    display: flex;
+    position: relative;
+    z-index: 30;
+    background: var(--paper);
+  }
 
   .nav.is-open {
     padding-top: 0.75rem;
@@ -447,7 +455,6 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
     border-top: 1px solid var(--rule);
     gap: 0.5rem;
   }
-  /* Name and branch read as a heading for the account block, not as controls. */
   .topbar-user .badge { align-self: flex-start; }
   .topbar-name { font-size: 0.95rem; font-weight: 600; color: var(--ink); }
   .topbar-user .btn { width: 100%; justify-content: center; }
