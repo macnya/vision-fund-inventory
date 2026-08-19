@@ -17,19 +17,23 @@
 }
 .topbar-inner {
   max-width: 1240px; margin: 0 auto;
-  padding: 0.75rem 1.25rem;
-  display: flex; align-items: center; gap: 1.25rem;
+  padding: 0.7rem 1.25rem;
+  display: flex; align-items: center; gap: 1rem;
 }
+/* The brand and account block stay put while the nav wraps beneath them. */
+.brand, .topbar-user { align-self: center; }
 .brand { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
 .brand img { height: 34px; width: auto; display: block; }
 
-.nav { display: flex; gap: 0.25rem; flex: 1; overflow-x: auto; scrollbar-width: none; }
-.nav::-webkit-scrollbar { display: none; }
+/* Wraps rather than scrolls. Nine tabs at a full-width viewport used to run off
+   the right edge, so Approvals and Staff accounts were reachable only by
+   horizontal scroll — invisible on a trackpad and easy to miss entirely. */
+.nav { display: flex; flex-wrap: wrap; gap: 0.2rem; flex: 1; min-width: 0; }
 
 .nav-item {
-  padding: 0.5rem 0.85rem;
+  padding: 0.45rem 0.7rem;
   border-radius: var(--r-sm);
-  font-size: 0.9rem; font-weight: 550;
+  font-size: 0.855rem; font-weight: 550;
   color: var(--ink-soft);
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
@@ -44,34 +48,6 @@
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
 .page-title { font-size: 1.5rem; }
 .page-sub { color: var(--ink-soft); font-size: 0.9rem; margin-top: 0.25rem; }
-
-/* --- Menu toggle ---------------------------------------------------------
-   Hidden on desktop; the responsive block below reveals it. Drawn in CSS
-   rather than pulled from an icon library — three lines and a cross is not
-   worth a dependency.
-------------------------------------------------------------------------- */
-.nav-toggle {
-  display: none;
-  width: 42px; height: 42px;
-  border-radius: var(--r-sm);
-  align-items: center; justify-content: center;
-  flex-shrink: 0; margin-left: auto;
-}
-.nav-toggle:hover { background: var(--surface); }
-
-.nav-toggle-bars, .nav-toggle-bars::before, .nav-toggle-bars::after {
-  display: block; width: 20px; height: 2px;
-  background: var(--ink); border-radius: 2px;
-  transition: transform 0.18s, opacity 0.18s;
-}
-.nav-toggle-bars { position: relative; }
-.nav-toggle-bars::before, .nav-toggle-bars::after { content: ''; position: absolute; left: 0; }
-.nav-toggle-bars::before { top: -6px; }
-.nav-toggle-bars::after  { top: 6px; }
-
-.nav-toggle-bars.is-open { background: transparent; }
-.nav-toggle-bars.is-open::before { top: 0; transform: rotate(45deg); }
-.nav-toggle-bars.is-open::after  { top: 0; transform: rotate(-45deg); }
 
 /* --- Buttons ------------------------------------------------------------- */
 .btn {
