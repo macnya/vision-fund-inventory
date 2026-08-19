@@ -45,6 +45,9 @@ app.use('/finance', require('./routes/financeRoutes'));
 app.use('/custody', require('./routes/custodyRoutes'));
 app.use('/activity', require('./routes/activityRoutes'));
 app.use('/import', require('./routes/importRoutes'));
+// The import posts back every parsed row, which for a full register is a few
+// megabytes. The default 100kb limit rejects it.
+app.use(express.json({ limit: '25mb' }));
 
 
 // 404 for unknown routes
