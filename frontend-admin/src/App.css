@@ -400,6 +400,18 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Activity trail ------------------------------------------------------- */
+.activity-tag {
+  display: inline-block; padding: 0.2rem 0.55rem; border-radius: var(--r-sm);
+  font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+}
+/* Colour carries the meaning at a glance: allowed, refused, or still waiting. */
+.activity-tag.is-approved { background: var(--good-bg); color: var(--good); }
+.activity-tag.is-rejected { background: var(--bad-bg);  color: var(--bad); }
+.activity-tag.is-recorded { background: var(--warn-bg); color: var(--warn); }
+.activity-tag.is-move     { background: var(--navy-bg); color: var(--navy); }
+.activity-tag.is-quiet    { background: var(--surface-2); color: var(--ink-faint); }
+
 /* --- Responsive ----------------------------------------------------------
    Everything below is an override, so this block stays last.
 ------------------------------------------------------------------------- */

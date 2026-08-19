@@ -15,11 +15,12 @@ import ChangePassword from './pages/ChangePassword';
 import Branches from './pages/Branches';
 import Approvals from './pages/Approvals';
 import { refreshSession, fetchPendingCount } from './api';
-import { isAdmin, isFinance, canCreateAssets, canManageRecords } from './roles';
+import { isAdmin, isFinance, canCreateAssets, canManageRecords, canonicalRole, ROLES } from './roles';
 import logo from './assets/logo.png';
 import Clearances from './pages/Clearances';
 import Assistant from './components/Assistant';
 import Finance from './pages/Finance';
+import Activity from './pages/Activity';
 
 // `hideForFinance` keeps a role off pages that are not theirs. Finance does not
 // need the map or the verification report — showing someone a page they cannot
@@ -31,6 +32,7 @@ const TABS = [
   { key: 'branches',      label: 'Branches' },
   { key: 'locations',     label: 'Map',           hideForFinance: true },
   { key: 'verifications', label: 'Verifications', hideForFinance: true },
+  { key: 'activity',      label: 'Activity',      adminOrAuditor: true },
   { key: 'clearances',    label: 'Exit clearance' },
   { key: 'approvals',     label: 'Approvals', adminOnly: true, badge: true },
   { key: 'users',         label: 'Staff accounts', adminOnly: true },
@@ -41,9 +43,11 @@ const TABS = [
 function visibleTabs(user) {
   const admin = isAdmin(user);
   const finance = isFinance(user);
+  const auditor = canonicalRole(user?.role) === ROLES.AUDITOR;
 
   return TABS.filter((t) => {
     if (t.adminOnly && !admin) return false;
+    if (t.adminOrAuditor && !(admin || auditor)) return false;
     if (t.financeOrAdmin && !(finance || admin)) return false;
     if (t.hideForFinance && finance) return false;
     return true;
@@ -189,6 +193,9 @@ function App() {
 
   } else if (view === 'verifications') {
     content = <VerificationReport />;
+
+  } else if (view === 'activity') {
+    content = <Activity scopedTo={user.branch} />;
 
   } else if (view === 'locations') {
     content = <AssetLocations onSelectAsset={openAsset} />;

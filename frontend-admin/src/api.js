@@ -326,3 +326,16 @@ export async function fetchCustodyForAsset(assetId) {
   const res = await api.get(`/custody/asset/${assetId}`);
   return res.data;
 }
+
+// --- Activity trail -------------------------------------------------------
+// Merged from movements, verifications and custody requests, including who
+// approved or refused each one.
+export async function fetchActivity(params = {}) {
+  const res = await api.get('/activity', { params });
+  return res.data;
+}
+
+export async function fetchActivityActions() {
+  const res = await api.get('/activity/actions');
+  return res.data;
+}
