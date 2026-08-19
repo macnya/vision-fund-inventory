@@ -27,3 +27,8 @@ backend/barcodes/
 frontend-scanner/node_modules/
 frontend-scanner/.expo/
 frontend-scanner/*.log
+
+# Expo build output. Regenerated on every `eas update`, several megabytes per
+# bundle, and read by nobody — the source that produced it is what matters.
+dist/
+.expo/
