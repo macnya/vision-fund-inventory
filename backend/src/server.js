@@ -44,6 +44,7 @@ app.use('/assistant', require('./routes/assistantRoutes'));
 app.use('/finance', require('./routes/financeRoutes'));
 app.use('/custody', require('./routes/custodyRoutes'));
 app.use('/activity', require('./routes/activityRoutes'));
+app.use('/import', require('./routes/importRoutes'));
 
 
 // 404 for unknown routes

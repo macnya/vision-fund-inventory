@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   fetchAssetDetail, fetchAssetHistory, markAssetDisposed, markAssetLost,
-  updateAsset, fetchAssetFilters,
+  updateAsset, fetchAssetFilters, checkDeletable, deleteAsset,
 } from '../api';
 import { API_BASE_URL } from '../config';
 import { isAdmin, canDispose } from '../roles';
+
 
 function currentUser() {
   try {
@@ -63,6 +64,7 @@ export default function AssetDetail({ assetCode, onBack }) {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);   // { kind: 'ok' | 'error', text }
   const [options, setOptions] = useState({ categories: [], conditions: [] });
+  const [deletable, setDeletable] = useState(null);
   const me = currentUser();
   const admin = isAdmin(me);
 
@@ -82,10 +84,19 @@ export default function AssetDetail({ assetCode, onBack }) {
     }
   }, [assetCode]);
 
-  useEffect(() => {
+    useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, [loadData]);
+
+  // Asked up front rather than on click. Offering an action that will be
+  // refused is worse than not offering it at all.
+  useEffect(() => {
+    if (!data?.asset?.asset_code || !isAdmin(me)) return;
+    checkDeletable(data.asset.asset_code)
+      .then(setDeletable)
+      .catch(() => setDeletable(null));
+  }, [data, me]);
 
   useEffect(() => {
     if (!admin) return;
@@ -165,6 +176,26 @@ export default function AssetDetail({ assetCode, onBack }) {
       loadData();
     } catch (err) {
       setNotice({ kind: 'error', text: err.response?.data?.error || 'Failed to report as lost.' });
+    }
+  };
+
+    // Deleting is for removing a mistake — a row entered twice, junk from an
+  // import. A real asset with history is disposed of or written off instead,
+  // and the backend refuses anything else.
+  const handleDelete = async () => {
+    const reason = prompt(
+      `Delete ${data.asset.asset_code} permanently?\n\n` +
+      `This is for removing a mistake, not for an asset that has left the ` +
+      `organisation — use "Mark as disposed" for that.\n\nWhy is it being removed?`
+    );
+    if (!reason?.trim()) return;
+
+    try {
+      await deleteAsset(data.asset.asset_code, reason.trim());
+      alert(`${data.asset.asset_code} removed from the register.`);
+      onBack();
+    } catch (err) {
+      setNotice({ kind: 'error', text: err.response?.data?.error || 'Could not delete that asset.' });
     }
   };
 
@@ -297,6 +328,13 @@ export default function AssetDetail({ assetCode, onBack }) {
               <div className="page-actions">
                 <button className="btn btn-danger btn-sm" onClick={handleMarkDisposed}>Mark as disposed</button>
                 <button className="btn btn-warn btn-sm" onClick={handleMarkLost}>Report as lost</button>
+
+                {/* Only when the asset has no history. Anything with a record
+                    is disposed of or written off — the register is an audit
+                    document, and a deleted row leaves no account of itself. */}
+                {deletable?.deletable && (
+                  <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
+                )}
               </div>
             </div>
           )}

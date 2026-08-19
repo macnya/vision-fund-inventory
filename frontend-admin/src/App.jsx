@@ -21,6 +21,7 @@ import Clearances from './pages/Clearances';
 import Assistant from './components/Assistant';
 import Finance from './pages/Finance';
 import Activity from './pages/Activity';
+import Import from './pages/Import';
 
 // `hideForFinance` keeps a role off pages that are not theirs. Finance does not
 // need the map or the verification report — showing someone a page they cannot
@@ -36,6 +37,7 @@ const TABS = [
   { key: 'clearances',    label: 'Exit clearance' },
   { key: 'approvals',     label: 'Approvals', adminOnly: true, badge: true },
   { key: 'users',         label: 'Staff accounts', adminOnly: true },
+  { key: 'import',        label: 'Import',        adminOnly: true },
 ];
 
 // One place deciding which tabs a role sees, rather than a condition per tab
@@ -199,6 +201,9 @@ function App() {
 
   } else if (view === 'locations') {
     content = <AssetLocations onSelectAsset={openAsset} />;
+
+    } else if (view === 'import') {
+    content = isAdmin(user) ? <Import /> : <AccessDenied />;
 
   } else if (view === 'list') {
     content = (

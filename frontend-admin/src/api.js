@@ -339,3 +339,43 @@ export async function fetchActivityActions() {
   const res = await api.get('/activity/actions');
   return res.data;
 }
+
+// --- Import ---------------------------------------------------------------
+// Preview writes nothing. The parsed rows come back to the browser and are sent
+// again on confirm, so the server holds no upload between the two steps.
+export async function previewImport(file) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await api.post('/import/preview', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data;
+}
+
+export async function applyImport({ rows, mode, filename, sheets }) {
+  const res = await api.post('/import/apply', { rows, mode, filename, sheets });
+  return res.data;
+}
+
+export async function fetchImportBatches() {
+  const res = await api.get('/import/batches');
+  return res.data;
+}
+
+// --- Deleting -------------------------------------------------------------
+// Only ever removes assets with no history. A real asset with a record is
+// disposed of or written off instead, which keeps the record.
+export async function checkDeletable(assetCode) {
+  const res = await api.get(`/assets/${encodeURIComponent(assetCode)}/deletable`);
+  return res.data;
+}
+
+export async function deleteAsset(assetCode, reason) {
+  const res = await api.delete(`/assets/${encodeURIComponent(assetCode)}`, { data: { reason } });
+  return res.data;
+}
+
+export async function deleteAssetBatch({ asset_codes, batch_id, reason }) {
+  const res = await api.post('/assets/delete-batch', { asset_codes, batch_id, reason });
+  return res.data;
+}
