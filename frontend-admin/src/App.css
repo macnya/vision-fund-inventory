@@ -118,13 +118,20 @@
 .card-body { padding: 1.25rem; }
 
 /* --- Stat tiles ---------------------------------------------------------- */
-.stats { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
+.stats { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 .stat {
   background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-lg);
   padding: 1.1rem 1.25rem; box-shadow: var(--shadow-sm);
 }
 .stat-label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--ink-faint); }
-.stat-value { font-size: 1.85rem; font-weight: 700; margin-top: 0.3rem; letter-spacing: -0.02em; }
+.stat-value {
+  font-size: 1.85rem; font-weight: 700; margin-top: 0.3rem; letter-spacing: -0.02em;
+  /* Long amounts — KES 165,416,169.85 — overflowed the tile. Wrapping is
+     better than clipping, and tabular figures keep a column of money aligned. */
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
 .stat-value.is-accent { color: var(--orange); }
 .stat-value.is-loss { color: var(--bad); }
 
