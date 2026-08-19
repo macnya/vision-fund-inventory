@@ -35,13 +35,22 @@ export async function fetchLocations() {
   return res.data;
 }
 
-export async function assignAsset({ asset_id, employee_id, location_id, latitude, longitude }) {
-  const res = await api.post('/assignments', { asset_id, employee_id, location_id, latitude, longitude });
-  return res.data;
-}
-
-export async function checkInAssignment(assignmentId, { latitude, longitude } = {}) {
-  const res = await api.patch(`/assignments/${assignmentId}/return`, { latitude, longitude });
+// Ask to assign an asset, or return it to storage.
+//
+// This replaced assignAsset and checkInAssignment. Custody changes no longer
+// take effect when an officer records them — HR 9.3a requires permission from
+// the head of department or branch manager before equipment moves, so this
+// records the request and an administrator approves it.
+//
+// The old functions were removed rather than kept alongside: leaving them would
+// mean the sync manager could still replay a direct assignment that bypassed
+// approval entirely.
+export async function requestCustodyChange({
+  asset_id, kind, employee_id, location_id, condition, notes, latitude, longitude,
+}) {
+  const res = await api.post('/custody/request', {
+    asset_id, kind, employee_id, location_id, condition, notes, latitude, longitude,
+  });
   return res.data;
 }
 

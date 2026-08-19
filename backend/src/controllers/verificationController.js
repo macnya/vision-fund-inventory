@@ -149,7 +149,7 @@ async function getVerificationReport(req, res) {
 // Cheap enough to call on every page load; there is a partial index on status.
 async function getPendingCount(req, res) {
   try {
-    const [verifications, assets] = await Promise.all([
+    const [verifications, assets, custodyRequests] = await Promise.all([
       pool.query(
         `SELECT COUNT(*)::int AS n FROM asset_verification
          WHERE status = 'pending' AND verified_by <> $1`,
@@ -161,6 +161,11 @@ async function getPendingCount(req, res) {
            AND (created_by IS NULL OR created_by <> $1)`,
         [req.user.id]
       ),
+      pool.query(
+        `SELECT COUNT(*)::int AS n FROM custody_request
+         WHERE status = 'pending' AND requested_by <> $1`,
+        [req.user.id]
+      ),
     ]);
 
     // Excludes the caller's own submissions, since they cannot approve those.
@@ -168,7 +173,8 @@ async function getPendingCount(req, res) {
     res.json({
       verifications: verifications.rows[0].n,
       assets: assets.rows[0].n,
-      total: verifications.rows[0].n + assets.rows[0].n,
+      custody: custodyRequests.rows[0].n,
+      total: verifications.rows[0].n + assets.rows[0].n + custodyRequests.rows[0].n,
     });
   } catch (err) {
     console.error(err);

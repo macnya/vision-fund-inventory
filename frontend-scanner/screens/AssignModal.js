@@ -3,7 +3,7 @@ import {
   Modal, View, Text, FlatList, TouchableOpacity, TextInput,
   StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
-import { fetchEmployeesOffline, fetchLocationsOffline, assignAssetOffline } from '../offline/offlineApi';
+import { fetchEmployeesOffline, fetchLocationsOffline, requestCustodyOffline } from '../offline/offlineApi';
 import { getCachedEmployees, getCachedLocations } from '../db/localDb';
 import * as Location from 'expo-location';
 import { c } from '../theme';
@@ -20,12 +20,20 @@ export default function AssignModal({ visible, assetId, assetCode, onClose, onAs
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // HR 9.3b makes an employee liable for damage through negligence to property
+  // entrusted to them. Without the condition at the moment of handover nobody
+  // can show whether damage happened on their watch — which protects the
+  // employee as much as the organisation. So it is required when equipment goes
+  // to a person, and not asked for when an asset is simply parked somewhere.
+  const [condition, setCondition] = useState(null);
+
   useEffect(() => {
     if (!visible) return;
 
     setQuery('');
     setSelectedEmployee(null);
     setSelectedLocation(null);
+    setCondition(null);
 
     // Cache first. Reading SQLite is instant, so the list is on screen before
     // any request goes out — this used to wait on two round trips of ~1,350
@@ -92,19 +100,32 @@ export default function AssignModal({ visible, assetId, assetCode, onClose, onAs
       Alert.alert('Nothing selected', 'Choose the person holding this asset, the place it lives, or both.');
       return;
     }
+    if (selectedEmployee && !condition) {
+      Alert.alert(
+        'Condition needed',
+        'Record what condition the equipment is in before it changes hands. This is what protects both sides if it is damaged later.'
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const coords = await getCurrentCoords();
-      const result = await assignAssetOffline(assetCode, {
+
+      // A request, not an assignment. Nothing moves in the register until an
+      // administrator approves it.
+      const result = await requestCustodyOffline(assetCode, {
         asset_id: assetId,
+        kind: 'assign',
         employee_id: selectedEmployee,
         location_id: selectedLocation,
+        condition: selectedEmployee ? condition : null,
         latitude: coords.latitude,
         longitude: coords.longitude,
       });
       onAssigned(result);
     } catch (err) {
-      Alert.alert('Could not assign', err.response?.data?.error || 'Try again once you have a signal.');
+      Alert.alert('Could not record that', err.response?.data?.error || 'Try again once you have a signal.');
     } finally {
       setSubmitting(false);
     }
@@ -213,12 +234,33 @@ export default function AssignModal({ visible, assetId, assetCode, onClose, onAs
           }}
         />
 
+        {/* Only when equipment goes to a person. An asset parked on a shelf
+            has no custodian to hold responsible, so asking would be noise. */}
+        {selectedEmployee ? (
+          <View style={s.conditionBlock}>
+            <Text style={s.conditionLabel}>Condition at handover</Text>
+            <View style={s.conditionRow}>
+              {['Good', 'Good with issues', 'Faulty'].map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={[s.conditionChip, condition === opt && s.conditionChipOn]}
+                  onPress={() => setCondition(opt)}
+                >
+                  <Text style={[s.conditionText, condition === opt && s.conditionTextOn]}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <View style={s.actions}>
           <TouchableOpacity style={s.cancel} onPress={onClose}>
             <Text style={s.cancelText}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.confirm} onPress={handleConfirm} disabled={submitting}>
-            {submitting ? <ActivityIndicator color={c.paper} /> : <Text style={s.confirmText}>Assign</Text>}
+            {submitting
+              ? <ActivityIndicator color={c.paper} />
+              : <Text style={s.confirmText}>Request</Text>}
           </TouchableOpacity>
         </View>
       </View>
@@ -274,6 +316,23 @@ const s = StyleSheet.create({
   optionMeta: { fontSize: 12, color: c.inkFaint, marginTop: 2 },
   tick: { color: c.paper, fontSize: 17, fontWeight: '700', marginLeft: 10 },
   empty: { fontSize: 13.5, color: c.inkFaint, lineHeight: 20, paddingVertical: 20 },
+
+  conditionBlock: {
+    paddingHorizontal: 20, paddingTop: 14, paddingBottom: 2,
+    borderTopWidth: 1, borderTopColor: c.rule,
+  },
+  conditionLabel: {
+    fontSize: 11, letterSpacing: 1.1, textTransform: 'uppercase',
+    fontWeight: '700', color: c.inkFaint, marginBottom: 9,
+  },
+  conditionRow: { flexDirection: 'row', gap: 8 },
+  conditionChip: {
+    flex: 1, paddingVertical: 11, borderRadius: 10,
+    borderWidth: 1.5, borderColor: c.rule, alignItems: 'center', backgroundColor: c.paper,
+  },
+  conditionChipOn: { borderColor: c.orange, backgroundColor: '#FDF3E7' },
+  conditionText: { fontSize: 12.5, fontWeight: '600', color: c.inkSoft, textAlign: 'center' },
+  conditionTextOn: { color: c.orange },
 
   actions: {
     flexDirection: 'row', gap: 10,

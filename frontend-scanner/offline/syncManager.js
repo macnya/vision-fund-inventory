@@ -1,6 +1,6 @@
 import NetInfo from '@react-native-community/netinfo';
 import { classifyError } from './classifyError';
-import { verifyAsset, assignAsset, checkInAssignment } from '../api';
+import { verifyAsset, requestCustodyChange } from '../api';
 import {
   getPendingActions,
   markActionSynced,
@@ -57,12 +57,27 @@ async function runAction(action) {
   if (type === 'verify') {
     return verifyAsset(asset_code, payload);
   }
+  // Assigning and returning both became custody requests: they change the
+  // register only once approved.
+  if (type === 'custody') {
+    return requestCustodyChange(payload);
+  }
+
+  // Queued on an older version of the app, before custody needed approval.
+  // Replayed as requests rather than discarded — the work was done in the
+  // field and losing it to a deploy would be worse than replaying it late.
   if (type === 'assign') {
-    return assignAsset(payload);
+    return requestCustodyChange({ ...payload, kind: 'assign' });
   }
   if (type === 'checkin') {
-    return checkInAssignment(payload.assignmentId, { latitude: payload.latitude, longitude: payload.longitude });
+    return requestCustodyChange({
+      asset_id: payload.asset_id,
+      kind: 'return',
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+    });
   }
+
   throw new Error(`Unknown queued action type: ${type}`);
 }
 

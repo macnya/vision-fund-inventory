@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator, Linking,
 } from 'react-native';
-import { checkInOffline } from '../offline/offlineApi';
+import { requestCustodyOffline } from '../offline/offlineApi';
 import AssignModal from './AssignModal';
 import VerifyModal from './VerifyModal';
 import * as Location from 'expo-location';
@@ -59,12 +59,20 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
         latitude = loc.coords.latitude;
         longitude = loc.coords.longitude;
       }
-      const result = await checkInOffline(asset.asset_code, current_assignment.id, { latitude, longitude });
+      // A request, not a return. Custody moves only once an administrator has
+      // approved it, so the asset is still with its current holder until then.
+      const result = await requestCustodyOffline(asset.asset_code, {
+        asset_id: asset.id,
+        kind: 'return',
+        latitude,
+        longitude,
+      });
+
       Alert.alert(
-        result.queued ? 'Saved offline' : 'Returned to storage',
+        result.queued ? 'Saved offline' : 'Recorded',
         result.queued
-          ? "Saved on this phone. It will sync once you're back online."
-          : `${asset.asset_code} is back in storage.`,
+          ? "Saved on this phone. It will be sent once you're back online."
+          : result.message || `The return of ${asset.asset_code} has been recorded for approval.`,
         [{ text: 'OK', onPress: onBack }]
       );
     } catch (err) {
@@ -79,15 +87,16 @@ export default function AssetDetailScreen({ assetData, onBack, onRefresh }) {
     const holder = current_assignment.employee_name || current_assignment.physical_location || current_assignment.branch || 'its current holder';
     Alert.alert(
       'Return to storage?',
-      `${asset.asset_code} will be cleared from ${holder} and marked as in stock.`,
+      `A request will be recorded to clear ${asset.asset_code} from ${holder}. ` +
+      `An administrator approves it before the register changes.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Return to storage', onPress: performCheckIn },
+        { text: 'Request return', onPress: performCheckIn },
       ]
     );
   };
 
-    const done = (verb) => (result) => {
+  const done = (verb) => (result) => {
     setShowAssignModal(false);
     setShowVerifyModal(false);
 

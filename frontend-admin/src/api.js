@@ -303,3 +303,26 @@ export async function fetchFinanceExport() {
   const res = await api.get('/finance/export');
   return res.data;
 }
+
+// --- Custody requests -----------------------------------------------------
+// Assigning or returning an asset does not change the register directly. A
+// request is recorded and takes effect only on approval.
+export async function fetchPendingCustody() {
+  const res = await api.get('/custody/pending');
+  return res.data;
+}
+
+export async function approveCustody(id) {
+  const res = await api.post(`/custody/${id}/approve`);
+  return res.data;
+}
+
+export async function rejectCustody(id, reason) {
+  const res = await api.post(`/custody/${id}/reject`, { reason });
+  return res.data;
+}
+
+export async function fetchCustodyForAsset(assetId) {
+  const res = await api.get(`/custody/asset/${assetId}`);
+  return res.data;
+}

@@ -1,4 +1,4 @@
-import api, { fetchEmployees, fetchLocations, verifyAsset, assignAsset, checkInAssignment } from '../api';
+import api, { fetchEmployees, fetchLocations, verifyAsset, requestCustodyChange } from '../api';
 import {
   cacheAsset, getCachedAsset,
   cacheEmployees, getCachedEmployees,
@@ -51,10 +51,10 @@ export async function fetchLocationsOffline() {
   }
 }
 
-// ---- Writes: verify / assign / check-in ----
-// Each: try the real request. If it fails because we're offline, queue it
-// AND optimistically patch the local asset cache so the UI reflects the
-// change immediately, with a "pending sync" flag the UI can show.
+// ---- Writes ----
+// Each: try the real request. If it fails because we're offline, queue it and
+// patch the local cache so the UI reflects what is known, with a "pending sync"
+// flag the UI can show.
 
 export async function verifyAssetOffline(assetCode, payload) {
   try {
@@ -72,42 +72,33 @@ export async function verifyAssetOffline(assetCode, payload) {
   }
 }
 
-export async function assignAssetOffline(assetCode, { asset_id, employee_id, location_id, latitude, longitude }) {
+// Requesting a custody change, offline-safe.
+//
+// This replaced assignAssetOffline and checkInOffline. Custody no longer moves
+// when an officer records it: HR 9.3a requires permission from the head of
+// department or branch manager before equipment moves, so an administrator
+// approves the request first.
+//
+// NOTE WHAT IS DELIBERATELY ABSENT. The old assign flow optimistically wrote
+// the new holder into the cache, so the screen showed the asset as moved. That
+// is now false — nothing has moved until approval — and showing an officer a
+// change that has not happened is the same false confirmation that had one
+// asset verified three times in six minutes. The cache records that a request
+// is waiting, and nothing more.
+export async function requestCustodyOffline(assetCode, payload) {
   try {
-    return await assignAsset({ asset_id, employee_id, location_id, latitude, longitude });
+    return await requestCustodyChange(payload);
   } catch (err) {
     if (!isOffline(err)) throw err;
-    queueAction('assign', assetCode, { asset_id, employee_id, location_id, latitude, longitude });
-    const cached = getCachedAsset(assetCode);
-    if (cached) {
-      const employees = getCachedEmployees();
-      const locations = getCachedLocations();
-      const emp = employees.find((e) => e.id === employee_id);
-      const loc = locations.find((l) => l.id === location_id);
-      cached.current_assignment = {
-        employee_name: emp?.name || null,
-        branch: loc?.branch || null,
-        physical_location: loc?.physical_location || null,
-      };
-      cached.pendingSync = true;
-      cacheAsset(assetCode, cached);
-    }
-    return { queued: true };
-  }
-}
+    queueAction('custody', assetCode, payload);
 
-export async function checkInOffline(assetCode, assignmentId, { latitude, longitude } = {}) {
-  try {
-    return await checkInAssignment(assignmentId, { latitude, longitude });
-  } catch (err) {
-    if (!isOffline(err)) throw err;
-    queueAction('checkin', assetCode, { assignmentId, latitude, longitude });
     const cached = getCachedAsset(assetCode);
     if (cached) {
-      cached.current_assignment = null;
+      cached.pendingCustodyRequest = true;
       cached.pendingSync = true;
       cacheAsset(assetCode, cached);
     }
+
     return { queued: true };
   }
 }

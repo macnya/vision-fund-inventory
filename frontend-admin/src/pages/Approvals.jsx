@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  fetchPendingVerifications, fetchPendingAssets,
+  fetchPendingVerifications, fetchPendingAssets, fetchPendingCustody,
   approveVerification, rejectVerification,
   approveAsset, rejectAsset,
+  approveCustody, rejectCustody,
 } from '../api';
 
 const CONDITION_BADGE = {
@@ -17,17 +18,29 @@ export default function Approvals({ onReviewed, onSelectAsset }) {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(null);      // id currently being actioned
+  const [custody, setCustody] = useState([]);
 
-  const load = useCallback(async () => {
+    const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [v, a] = await Promise.all([fetchPendingVerifications(), fetchPendingAssets()]);
-      setVerifications(v);
-      setAssets(a);
-      onReviewed?.();                          // refresh the badge in the nav
-    } catch (err) {
-      console.error(err);
-      setNotice({ kind: 'error', text: 'Could not load the approval queue.' });
+      // allSettled, not all: one failing endpoint should not empty the whole
+      // page. When the verification routes were mounted at the wrong path, a
+      // single 404 hid the other queues entirely.
+      const [v, a, c] = await Promise.allSettled([
+        fetchPendingVerifications(), fetchPendingAssets(), fetchPendingCustody(),
+      ]);
+
+      setVerifications(v.status === 'fulfilled' ? v.value : []);
+      setAssets(a.status === 'fulfilled' ? a.value : []);
+      setCustody(c.status === 'fulfilled' ? c.value : []);
+
+      const failed = [v, a, c].filter((r) => r.status === 'rejected');
+      if (failed.length) {
+        console.error('Some approval queues failed to load', failed);
+        setNotice({ kind: 'error', text: 'Part of the approval queue could not be loaded.' });
+      }
+
+      onReviewed?.();
     } finally {
       setLoading(false);
     }
@@ -62,7 +75,7 @@ export default function Approvals({ onReviewed, onSelectAsset }) {
     return reason.trim();
   };
 
-  const total = verifications.length + assets.length;
+  const total = verifications.length + assets.length + custody.length;
 
   if (loading) return <div className="page"><p className="empty">Loading approvals…</p></div>;
 
@@ -99,6 +112,108 @@ export default function Approvals({ onReviewed, onSelectAsset }) {
         </div>
       ) : (
         <>
+                    {custody.length > 0 && (
+            <section className="card" style={{ marginBottom: '1rem' }}>
+              <div className="card-head">
+                <h2 className="card-title">Custody changes</h2>
+                <span className="list-count">{custody.length}</span>
+              </div>
+
+              {/* HR 9.3a requires permission from the head of department or
+                  branch manager before equipment moves. This is that
+                  permission — nothing has moved in the register yet. */}
+              <div className="card-body" style={{ paddingBottom: 0 }}>
+                <p className="page-sub">
+                  Nothing has changed in the register yet. Approving is what moves the asset.
+                </p>
+              </div>
+
+              <div className="table-wrap" style={{ border: 'none', borderRadius: 0 }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Asset</th>
+                      <th>Move</th>
+                      <th>Condition</th>
+                      <th>Requested by</th>
+                      <th aria-label="Actions"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {custody.map((c) => (
+                      <tr key={c.id}>
+                        <td data-label="Asset">
+                          <button className="link-btn code" onClick={() => onSelectAsset(c.asset_code)}>
+                            {c.asset_code}
+                          </button>
+                          <div className="cell-sub">{c.description}</div>
+                        </td>
+
+                        <td data-label="Move">
+                          <span className={c.kind === 'return' ? 'badge badge-neutral' : 'badge badge-orange'}>
+                            {c.kind === 'return' ? 'Return to storage' : 'Assign'}
+                          </span>
+                          <div className="cell-sub">
+                            {[c.from_employee, c.from_place, c.from_branch].filter(Boolean).join(' · ') || 'storage'}
+                            {' → '}
+                            {c.kind === 'return'
+                              ? 'storage'
+                              : [c.to_employee, c.to_place, c.to_branch].filter(Boolean).join(' · ')}
+                          </div>
+                          {c.notes && <div className="cell-sub">{c.notes}</div>}
+                        </td>
+
+                        {/* The condition recorded at handover is what makes
+                            HR 9.3b enforceable if the equipment is later
+                            damaged. */}
+                        <td data-label="Condition">
+                          {c.condition_at_handover
+                            ? <span className="badge badge-neutral">{c.condition_at_handover}</span>
+                            : <span className="muted">—</span>}
+                        </td>
+
+                        <td data-label="Requested by">
+                          {c.requested_by_name}
+                          <div className="cell-sub">
+                            {c.requested_by_role} · {new Date(c.requested_at).toLocaleDateString()}
+                          </div>
+                          {c.gps_link && (
+                            <div className="cell-sub">
+                              <a href={c.gps_link} target="_blank" rel="noopener noreferrer">View position</a>
+                            </div>
+                          )}
+                        </td>
+
+                        <td data-label="">
+                          <div className="page-actions">
+                            <button
+                              className="btn btn-primary btn-sm"
+                              disabled={busy === `c${c.id}`}
+                              onClick={() => act(`c${c.id}`, () => approveCustody(c.id),
+                                `${c.asset_code} moved.`)}
+                            >
+                              {busy === `c${c.id}` ? '…' : 'Approve'}
+                            </button>
+                            <button
+                              className="btn btn-danger btn-sm"
+                              disabled={busy === `c${c.id}`}
+                              onClick={() => {
+                                const reason = rejectWithReason(`the move of ${c.asset_code}`);
+                                if (reason) act(`c${c.id}`, () => rejectCustody(c.id, reason),
+                                  `${c.asset_code} sent back.`);
+                              }}
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
           {verifications.length > 0 && (
             <section className="card" style={{ marginBottom: '1rem' }}>
               <div className="card-head">
