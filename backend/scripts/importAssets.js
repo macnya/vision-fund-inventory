@@ -66,10 +66,19 @@ function normaliseCondition(value, assetCode) {
   return null;
 }
 
+// Dates are read as calendar dates, not instants. See the note in
+// backfillAssetValues.js: .toISOString() shifted every purchase date in the
+// register back by one day.
 function toDateString(value) {
   if (!value) return null;
-  if (value instanceof Date) return value.toISOString().split('T')[0];
-  return null;
+
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d)) return null;
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function toNumber(value) {

@@ -49,23 +49,33 @@ const SHEETS = {
 
 function toNumber(value) {
   if (value === undefined || value === null || value === '') return null;
-  // Spreadsheet money often arrives as "1,234.50" or "KES 1,234". Stripping
-  // anything that is not a digit, dot or minus is safer than Number() alone,
-  // which returns NaN for those and would silently drop the value.
   const cleaned = typeof value === 'string'
     ? value.replace(/[^0-9.-]/g, '')
     : value;
   const n = Number(cleaned);
-  return Number.isFinite(n) && n !== 0 ? n : null;
+  // Zero is a value, not a gap. Treating it as missing is why NBV came back
+  // null for every fully-depreciated asset — the register could not tell
+  // "written down to nothing" from "never recorded".
+  return Number.isFinite(n) ? n : null;
 }
 
+// Dates are read as calendar dates, not instants.
+//
+// .toISOString() on a date parsed in local time shifts it: Kenya is UTC+3, so
+// midnight on the 1st became 21:00 on the 30th. That is how every purchase date
+// in the register ended up one day early. A spreadsheet date has no timezone —
+// it is the day written in the cell — so the local parts are read directly.
 function toDateString(value) {
   if (!value) return null;
-  if (value instanceof Date && !isNaN(value)) return value.toISOString().slice(0, 10);
-  const d = new Date(value);
-  return isNaN(d) ? null : d.toISOString().slice(0, 10);
-}
 
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d)) return null;
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 async function main() {
   const apply = process.argv.includes('--apply');
   const overwrite = process.argv.includes('--overwrite');

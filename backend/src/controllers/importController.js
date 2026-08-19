@@ -60,11 +60,23 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Dates are read as calendar dates, not instants.
+//
+// The original import called .toISOString() on a date parsed in local time.
+// Kenya is UTC+3, so midnight on the 1st became 21:00 on the 30th, and every
+// purchase date in the register is one day early. A spreadsheet date has no
+// timezone — it is the day written in the cell — so the local parts are read
+// directly rather than converted.
 function toDate(value) {
   if (!value) return null;
-  if (value instanceof Date && !isNaN(value)) return value.toISOString().slice(0, 10);
-  const d = new Date(value);
-  return isNaN(d) ? null : d.toISOString().slice(0, 10);
+
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d)) return null;
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // Sheets that are not asset registers. This workbook carries cleanup notes, a
