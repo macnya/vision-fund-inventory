@@ -67,16 +67,33 @@ function toDate(value) {
   return isNaN(d) ? null : d.toISOString().slice(0, 10);
 }
 
+// Sheets that are not asset registers. This workbook carries cleanup notes, a
+// summary, disposal and loss listings, and copies of three sheets somebody
+// duplicated in Excel and left in — reading them all produced 1,095 rejections
+// and buried the rows that mattered.
+const SKIP_SHEET = /^(data cleanup|nc codes|summary|disposal|lost assets|sheet\d*)/i;
+const DUPLICATE_SHEET = /\(\d+\)\s*$/;
+
 // Parses the workbook into rows, and says plainly what it could not read.
 function parseWorkbook(buffer) {
   const wb = xlsx.read(buffer, { type: 'buffer', cellDates: true });
 
   const rows = [];
   const rejections = [];
+  const skippedSheets = [];
+  const readSheets = [];
   const seenCodes = new Map();
   const seenSerials = new Map();
 
   for (const sheetName of wb.SheetNames) {
+    const name = sheetName.trim();
+
+    if (SKIP_SHEET.test(name) || DUPLICATE_SHEET.test(name)) {
+      skippedSheets.push(sheetName);
+      continue;
+    }
+    readSheets.push(sheetName);
+
     const raw = xlsx.utils.sheet_to_json(wb.Sheets[sheetName], { defval: null });
 
     raw.forEach((rawRow, i) => {
@@ -88,11 +105,13 @@ function parseWorkbook(buffer) {
 
       const assetCode = String(code).trim();
 
-      // 168 assets once shared the single code "N/A". Refusing it here is the
-      // check that was missing.
-      if (/^(n\/?a|none|nil|-{1,}|tbd)$/i.test(assetCode)) {
+      // Not an asset code. "N/A" gave 168 assets the same code; the balance and
+      // variance rows are spreadsheet arithmetic that the original import
+      // brought in as sixteen pieces of equipment.
+      if (/^(n\/?a|none|nil|-{1,}|tbd)$/i.test(assetCode)
+          || /^(balance|system balance|variance|total|grand total|sub[- ]?total)/i.test(assetCode)) {
         rejections.push({ sheet: sheetName, row: rowNumber, code: assetCode,
-                          reason: 'Not a real asset code' });
+                          reason: 'Not an asset — a total or balance row' });
         return;
       }
 
@@ -154,7 +173,7 @@ function parseWorkbook(buffer) {
     });
   }
 
-  return { rows, rejections, sheetNames: wb.SheetNames };
+  return { rows, rejections, sheetNames: readSheets, skippedSheets };
 }
 
 // Fields compared when deciding whether an existing asset would change.
@@ -165,10 +184,30 @@ const COMPARED = [
   'supplier', 'nbv', 'accumulated_depreciation', 'chassis_number', 'engine_number',
 ];
 
+// Dates arrive as a JS Date from Postgres and as a string from the sheet, so a
+// plain string comparison never matched — which reported 2,201 of 2,291 assets
+// as "changed" when only the format differed, burying whatever had genuinely
+// moved.
+const asDate = (v) => {
+  if (v == null) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return isNaN(d) ? null : d.toISOString().slice(0, 10);
+};
+
 const same = (a, b) => {
   if (a == null && b == null) return true;
   if (a == null || b == null) return false;
-  if (typeof a === 'number' || typeof b === 'number') return Number(a) === Number(b);
+
+  if (a instanceof Date || b instanceof Date) {
+    const da = asDate(a), db = asDate(b);
+    return da != null && da === db;
+  }
+
+  if (typeof a === 'number' || typeof b === 'number') {
+    // Money is stored to two decimals; a sheet may carry more.
+    return Math.abs(Number(a) - Number(b)) < 0.005;
+  }
+
   return String(a).trim() === String(b).trim();
 };
 
@@ -177,12 +216,13 @@ async function preview(req, res) {
   if (!req.file) return res.status(400).json({ error: 'No file was uploaded' });
 
   try {
-    const { rows, rejections, sheetNames } = parseWorkbook(req.file.buffer);
+    const { rows, rejections, sheetNames, skippedSheets } = parseWorkbook(req.file.buffer);
 
     if (!rows.length) {
       return res.status(400).json({
         error: 'No usable rows found. Check the sheet has an ASSET CODE and DESCRIPTION column.',
         rejections: rejections.slice(0, 50),
+        skipped_sheets: skippedSheets,
       });
     }
 
@@ -222,6 +262,7 @@ async function preview(req, res) {
     res.json({
       filename: req.file.originalname,
       sheets: sheetNames,
+      skipped_sheets: skippedSheets,
       rows_read: rows.length,
       summary: {
         added: added.length,
@@ -314,7 +355,7 @@ async function apply(req, res) {
            AND (
              description IS DISTINCT FROM COALESCE($2, description)
              OR serial_number IS DISTINCT FROM COALESCE($3, serial_number)
-             OR date_of_purchase IS DISTINCT FROM COALESCE($4, date_of_purchase)
+             OR date_of_purchase IS DISTINCT FROM COALESCE($4::date, date_of_purchase)
              OR purchase_price IS DISTINCT FROM COALESCE($5, purchase_price)
              OR supplier IS DISTINCT FROM COALESCE($6, supplier)
              OR nbv IS DISTINCT FROM COALESCE($7, nbv)
