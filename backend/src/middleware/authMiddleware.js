@@ -11,6 +11,9 @@ const ROLES = {
   OFFICER: 'Administration Officer',
   BRANCH_ADMIN: 'Branch Administrator',
   AUDITOR: 'Auditor',
+  // Read-only like an Auditor, but the financial fields are the point: value,
+  // depreciation, disposals, and what a leaver owes.
+  FINANCE: 'Finance',
 };
 
 const LEGACY_ROLES = {
