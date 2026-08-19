@@ -418,7 +418,7 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
 
 /* The nav used to wrap onto the same row as the account controls and get cut
    off at the right edge. Below 860px both collapse into a panel instead. */
-@media (max-width: 860px) {
+@media (max-width: 1100px) {
   .topbar-inner { flex-wrap: wrap; gap: 0; padding: 0.6rem 1rem; }
   .brand img { height: 30px; }
 
