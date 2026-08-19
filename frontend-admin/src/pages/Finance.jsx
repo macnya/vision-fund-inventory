@@ -49,7 +49,7 @@ export default function Finance({ scopedTo }) {
     }
   }, [tab]);
 
-    useEffect(() => {
+  useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
@@ -76,6 +76,8 @@ export default function Finance({ scopedTo }) {
         ...rows.map((r) => headers.map((h) => escape(r[h])).join(',')),
       ].join('\n');
 
+      // The byte order mark makes Excel open this as UTF-8 rather than mangling
+      // any non-ASCII character in a supplier or employee name.
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -208,26 +210,41 @@ function Disposals({ d }) {
           <div className="stat-value">{d.count}</div>
         </div>
         <div className="stat">
-          <div className="stat-label">Original cost</div>
-          <div className="stat-value">{money(d.total_cost)}</div>
+          <div className="stat-label">Gross value</div>
+          <div className="stat-value">{money(d.total_gross)}</div>
         </div>
         <div className="stat">
-          <div className="stat-label">Net book value at disposal</div>
-          <div className="stat-value is-accent">{money(d.total_nbv)}</div>
+          <div className="stat-label">NBV at disposal</div>
+          <div className="stat-value">{money(d.total_nbv)}</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Proceeds</div>
+          <div className="stat-value">{money(d.total_proceeds)}</div>
+        </div>
+        {/* Gain or loss is the figure that reaches the accounts, so it is the
+            one given the accent. Negative is shown in red because a loss read
+            as a gain is the kind of mistake a colour prevents. */}
+        <div className="stat">
+          <div className="stat-label">Gain or loss</div>
+          <div className={Number(d.total_gain_or_loss) < 0 ? 'stat-value is-loss' : 'stat-value is-accent'}>
+            {money(d.total_gain_or_loss)}
+          </div>
         </div>
       </div>
 
       <Table
         title="Disposals"
-        head={['Asset', 'Category', 'Date', 'Method', 'At cost', 'NBV', 'Recorded by']}
+        head={['Asset', 'Category', 'Month', 'Gross', 'NBV', 'Proceeds', 'Gain / loss']}
         rows={d.disposals.map((r) => [
           `${r.asset_code} — ${r.description}`,
           r.category || '—',
-          r.disposal_date ? new Date(r.disposal_date).toLocaleDateString() : '—',
-          r.method || '—',
-          money(r.purchase_price),
-          money(r.nbv),
-          r.recorded_by || '—',
+          r.disposal_month
+            ? new Date(r.disposal_month).toLocaleDateString('en-KE', { year: 'numeric', month: 'short' })
+            : '—',
+          money(r.base_gross_value),
+          money(r.nbv_at_disposal),
+          money(r.sales_proceeds),
+          money(r.gain_or_loss),
         ])}
         empty="No disposals recorded."
       />

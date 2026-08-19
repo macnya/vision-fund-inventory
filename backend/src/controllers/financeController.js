@@ -98,7 +98,10 @@ async function getSummary(req, res) {
   }
 }
 
-// GET /finance/disposals — what left the register, and what it was worth.
+// GET /finance/disposals — what left the register, and what it realised.
+//
+// The disposal record already carries proceeds and gain or loss, which is the
+// figure that reaches the accounts. Nothing here recalculates it.
 async function getDisposals(req, res) {
   const { from, to } = req.query;
   const scope = branchScopeFor(req);
@@ -107,19 +110,22 @@ async function getDisposals(req, res) {
     const params = [scope];
     let dateClause = '';
 
-    if (from) { params.push(from); dateClause += ` AND d.disposal_date >= $${params.length}`; }
+    if (from) { params.push(from); dateClause += ` AND d.disposal_month >= $${params.length}`; }
     if (to) {
-      // A bare date compared with <= stops at midnight and excludes that day.
+      // disposal_month is a date, so a bare date compared with <= would still
+      // stop at midnight on that day.
       const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(to).trim());
       params.push(to);
       dateClause += dateOnly
-        ? ` AND d.disposal_date < (($${params.length})::date + INTERVAL '1 day')`
-        : ` AND d.disposal_date <= $${params.length}`;
+        ? ` AND d.disposal_month < (($${params.length})::date + INTERVAL '1 day')`
+        : ` AND d.disposal_month <= $${params.length}`;
     }
 
     const { rows } = await pool.query(
-      `SELECT a.asset_code, a.description, a.purchase_price, a.nbv,
-              ac.name AS category, d.disposal_date, d.method, d.notes,
+      `SELECT a.asset_code, a.description,
+              ac.name AS category,
+              d.disposal_month, d.base_gross_value, d.accumulated_depreciation,
+              d.nbv_at_disposal, d.sales_proceeds, d.gain_or_loss, d.notes,
               s.name AS recorded_by, l.branch
        FROM disposal_record d
        JOIN asset a ON a.id = d.asset_id
@@ -128,16 +134,20 @@ async function getDisposals(req, res) {
        LEFT JOIN assignment ag ON ag.asset_id = a.id
        LEFT JOIN location l ON l.id = ag.location_id
        WHERE ($1::text IS NULL OR l.branch = $1)${dateClause}
-       ORDER BY d.disposal_date DESC NULLS LAST
+       ORDER BY d.disposal_month DESC NULLS LAST
        LIMIT 500`,
       params
     );
 
+    const sum = (k) => rows.reduce((s2, r) => s2 + Number(r[k] || 0), 0);
+
     res.json({
       disposals: rows,
       count: rows.length,
-      total_cost: rows.reduce((s, r) => s + Number(r.purchase_price || 0), 0),
-      total_nbv: rows.reduce((s, r) => s + Number(r.nbv || 0), 0),
+      total_gross: sum('base_gross_value'),
+      total_nbv: sum('nbv_at_disposal'),
+      total_proceeds: sum('sales_proceeds'),
+      total_gain_or_loss: sum('gain_or_loss'),
     });
   } catch (err) {
     console.error(err);
@@ -146,6 +156,10 @@ async function getDisposals(req, res) {
 }
 
 // GET /finance/losses — written off, and what it cost.
+//
+// The loss record keeps the last known holder and location on the record
+// itself, rather than relying on the assignment still being open — which it
+// will not be once the asset is written off.
 async function getLosses(req, res) {
   const scope = branchScopeFor(req);
 
@@ -153,14 +167,15 @@ async function getLosses(req, res) {
     const { rows } = await pool.query(
       `SELECT a.asset_code, a.description, a.purchase_price, a.nbv,
               ac.name AS category, lo.reported_date, lo.notes,
-              s.name AS reported_by, l.branch, e.name AS last_held_by
+              s.name AS reported_by,
+              e.name AS last_held_by,
+              l.branch
        FROM lost_asset_record lo
        JOIN asset a ON a.id = lo.asset_id
        LEFT JOIN asset_category ac ON ac.id = a.asset_category_id
        LEFT JOIN it_staff s ON s.id = lo.reported_by
-       LEFT JOIN assignment ag ON ag.asset_id = a.id
-       LEFT JOIN employee e ON e.id = ag.employee_id
-       LEFT JOIN location l ON l.id = ag.location_id
+       LEFT JOIN employee e ON e.id = lo.last_known_employee_id
+       LEFT JOIN location l ON l.id = lo.last_known_location_id
        WHERE ($1::text IS NULL OR l.branch = $1)
        ORDER BY lo.reported_date DESC NULLS LAST
        LIMIT 500`,
@@ -170,8 +185,8 @@ async function getLosses(req, res) {
     res.json({
       losses: rows,
       count: rows.length,
-      total_cost: rows.reduce((s, r) => s + Number(r.purchase_price || 0), 0),
-      total_nbv: rows.reduce((s, r) => s + Number(r.nbv || 0), 0),
+      total_cost: rows.reduce((s2, r) => s2 + Number(r.purchase_price || 0), 0),
+      total_nbv: rows.reduce((s2, r) => s2 + Number(r.nbv || 0), 0),
     });
   } catch (err) {
     console.error(err);

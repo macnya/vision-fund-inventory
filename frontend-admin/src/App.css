@@ -126,6 +126,7 @@
 .stat-label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--ink-faint); }
 .stat-value { font-size: 1.85rem; font-weight: 700; margin-top: 0.3rem; letter-spacing: -0.02em; }
 .stat-value.is-accent { color: var(--orange); }
+.stat-value.is-loss { color: var(--bad); }
 
 .stat.is-link {
   display: block; width: 100%; text-align: left;
