@@ -410,6 +410,12 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
 }
 .assistant-input input { flex: 1; padding: 0.55rem 0.75rem; font-size: 0.875rem; }
 
+/* Money and counts read correctly only when right-aligned and tabular. */
+.table th.is-num, .table td.is-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* --- Responsive ----------------------------------------------------------
    Everything below is an override, so this block stays last.
 ------------------------------------------------------------------------- */
@@ -473,6 +479,7 @@ input.is-mono { font-family: var(--mono); letter-spacing: 0.02em; }
     font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase;
     font-weight: 700; color: var(--ink-faint); flex-shrink: 0;
   }
+  .table td.is-num { text-align: right; }
 
   .row { flex-direction: column; gap: 0.25rem; }
   .row-value { text-align: left; }

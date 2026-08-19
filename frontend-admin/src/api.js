@@ -275,3 +275,31 @@ export async function askAssistant(question) {
   const res = await api.post('/assistant', { question });
   return res.data;
 }
+
+// --- Finance reporting ----------------------------------------------------
+// Read-only. There is no write path on the backend for these, by construction
+// rather than by permission check.
+export async function fetchFinanceSummary() {
+  const res = await api.get('/finance/summary');
+  return res.data;
+}
+
+export async function fetchDisposals(params = {}) {
+  const res = await api.get('/finance/disposals', { params });
+  return res.data;
+}
+
+export async function fetchLosses() {
+  const res = await api.get('/finance/losses');
+  return res.data;
+}
+
+export async function fetchRecoverable() {
+  const res = await api.get('/finance/recoverable');
+  return res.data;
+}
+
+export async function fetchFinanceExport() {
+  const res = await api.get('/finance/export');
+  return res.data;
+}

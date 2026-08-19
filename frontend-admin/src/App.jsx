@@ -15,21 +15,40 @@ import ChangePassword from './pages/ChangePassword';
 import Branches from './pages/Branches';
 import Approvals from './pages/Approvals';
 import { refreshSession, fetchPendingCount } from './api';
-import { isAdmin, canCreateAssets, canManageRecords } from './roles';
+import { isAdmin, isFinance, canCreateAssets, canManageRecords } from './roles';
 import logo from './assets/logo.png';
 import Clearances from './pages/Clearances';
 import Assistant from './components/Assistant';
+import Finance from './pages/Finance';
 
+// `hideForFinance` keeps a role off pages that are not theirs. Finance does not
+// need the map or the verification report — showing someone a page they cannot
+// act on is noise, and it makes the pages they do need harder to find.
 const TABS = [
   { key: 'dashboard',     label: 'Dashboard' },
   { key: 'list',          label: 'Assets' },
+  { key: 'finance',       label: 'Finance',       financeOrAdmin: true },
   { key: 'branches',      label: 'Branches' },
-  { key: 'locations',     label: 'Map' },
-  { key: 'verifications', label: 'Verifications' },
+  { key: 'locations',     label: 'Map',           hideForFinance: true },
+  { key: 'verifications', label: 'Verifications', hideForFinance: true },
   { key: 'clearances',    label: 'Exit clearance' },
   { key: 'approvals',     label: 'Approvals', adminOnly: true, badge: true },
   { key: 'users',         label: 'Staff accounts', adminOnly: true },
 ];
+
+// One place deciding which tabs a role sees, rather than a condition per tab
+// scattered through the render.
+function visibleTabs(user) {
+  const admin = isAdmin(user);
+  const finance = isFinance(user);
+
+  return TABS.filter((t) => {
+    if (t.adminOnly && !admin) return false;
+    if (t.financeOrAdmin && !(finance || admin)) return false;
+    if (t.hideForFinance && finance) return false;
+    return true;
+  });
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -151,6 +170,11 @@ function App() {
         }}
       />
     );
+  
+  } else if (view === 'finance') {
+    content = (isFinance(user) || isAdmin(user))
+      ? <Finance scopedTo={user.branch} />
+      : <AccessDenied />;
 
   } else if (view === 'approvals') {
     content = isAdmin(user)
@@ -215,7 +239,7 @@ function App() {
           </button>
 
           <nav className={menuOpen ? 'nav is-open' : 'nav'}>
-            {TABS.filter((t) => !t.adminOnly || isAdmin(user)).map((t) => (
+                        {visibleTabs(user).map((t) => (
               <button
                 key={t.key}
                 className={view === t.key ? 'nav-item is-active' : 'nav-item'}
