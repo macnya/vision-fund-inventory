@@ -36,12 +36,23 @@ const FIELDS = {
   supplier:     ['SUPPLIER', 'VENDOR'],
   branch:       ['BRANCH'],
   department:   ['LOCATION', 'DEPARTMENT'],
-  physLoc:      ['PHYSICAL LOCATION', 'CURRENT USER', 'NAME OF USER'],
+  // 'NAM E OF USER' is a typo in the Plant & Machinery and Intangibles sheet
+  // headers. Trimming and upper-casing does not repair an interior space, so
+  // those two sheets silently lost their holder column until it was listed.
+  physLoc:      ['PHYSICAL LOCATION', 'CURRENT USER', 'NAME OF USER', 'NAM E OF USER'],
   status:       ['CURRENT STATUS', 'STATUS'],
   nbv:          ['NBV', 'NET BOOK VALUE'],
   accDep:       ['ACCUMULATED DEPRECIATION'],
   chassis:      ['CHASSIS NO', 'CHASSIS NO.', 'CHASSIS NUMBER'],
   engine:       ['ENGINE NO', 'ENGINE NO.', 'ENGINE NUMBER'],
+  // The depreciation columns exist on every sheet and on the asset table, but
+  // were never mapped, so the register could not answer what anything is worth
+  // now. Empty in the current workbook; mapped so they arrive when they are
+  // filled in rather than needing another code change.
+  usefulLife:   ['NO. OF YEARS', 'NO OF YEARS', 'USEFUL LIFE', 'USEFUL LIFE YEARS'],
+  remainingLife:['REMAINING LIFE'],
+  monthlyDep:   ['MONTHLY DEPRECIATION'],
+  endMonth:     ['CURRENT END MONTH DATE'],
 };
 
 function pick(row, field) {
@@ -55,6 +66,11 @@ function toNumber(value) {
   if (value === undefined || value === null || value === '') return null;
   // "1,234.50" and "KES 1,234" both give NaN through Number() alone, and the
   // value is then silently lost.
+  // A cell holding only spaces strips to '', and Number('') is 0 — so a blank
+  // read as a recorded zero. One such cell is already in the Accumulated
+  // Depreciation column of the Equipments sheet.
+  if (typeof value === 'string' && !/\d/.test(value)) return null;
+
   const cleaned = typeof value === 'string' ? value.replace(/[^0-9.-]/g, '') : value;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
@@ -136,9 +152,13 @@ function parseWorkbook(buffer) {
 
       // A code appearing twice in one upload is a mistake in the spreadsheet,
       // not something to resolve silently by taking the last one.
+      // The message names the sheet the first copy was on. Codes repeat ACROSS
+      // sheets here — 54 of the Tablets rows also appear under Non-Capitalized —
+      // and "duplicate of row 442 in this file" read as nonsense while you were
+      // looking at a different tab.
       if (seenCodes.has(assetCode)) {
         rejections.push({ sheet: sheetName, row: rowNumber, code: assetCode,
-                          reason: `Duplicate of ${seenCodes.get(assetCode)} in this file` });
+                          reason: `Already read from ${seenCodes.get(assetCode)}` });
         return;
       }
       seenCodes.set(assetCode, `${sheetName} row ${rowNumber}`);
@@ -157,6 +177,10 @@ function parseWorkbook(buffer) {
         supplier: pick(row, 'supplier'),
         nbv: toNumber(pick(row, 'nbv')),
         accumulated_depreciation: toNumber(pick(row, 'accDep')),
+        useful_life_years: toNumber(pick(row, 'usefulLife')),
+        remaining_life: toNumber(pick(row, 'remainingLife')),
+        monthly_depreciation: toNumber(pick(row, 'monthlyDep')),
+        current_end_month_date: toDate(pick(row, 'endMonth')),
         chassis_number: pick(row, 'chassis'),
         engine_number: pick(row, 'engine'),
         branch: pick(row, 'branch'),
@@ -194,6 +218,7 @@ function parseWorkbook(buffer) {
 const COMPARED = [
   'description', 'serial_number', 'date_of_purchase', 'purchase_price',
   'supplier', 'nbv', 'accumulated_depreciation', 'chassis_number', 'engine_number',
+  'useful_life_years', 'remaining_life', 'monthly_depreciation', 'current_end_month_date',
 ];
 
 // Dates arrive as a JS Date from Postgres and as a string from the sheet, so a
@@ -242,7 +267,9 @@ async function preview(req, res) {
     const { rows: existing } = await pool.query(
       `SELECT asset_code, description, serial_number, date_of_purchase,
               purchase_price, supplier, nbv, accumulated_depreciation,
-              chassis_number, engine_number
+              chassis_number, engine_number,
+              useful_life_years, remaining_life, monthly_depreciation,
+              current_end_month_date
        FROM asset WHERE asset_code = ANY($1::text[])`,
       [codes]
     );
@@ -298,9 +325,82 @@ async function preview(req, res) {
   }
 }
 
+// Where an asset sits, from the sheet's BRANCH / LOCATION / PHYSICAL LOCATION.
+//
+// WHY THIS EXISTS
+// An asset's branch is not a column on `asset`. It is reached through the
+// asset's open assignment and that assignment's location, which is how every
+// query in the system finds it. The import parsed all three columns and then
+// wrote none of them, so 2,074 of 2,117 imported assets arrived with no branch
+// at all: invisible to a Branch Administrator, absent from Assets by Branch,
+// and excluded from the branch breakdown Finance reports on.
+//
+// Resolved in ONE pass over the distinct combinations rather than per row.
+// The register has 2,117 rows but only ~976 distinct places, and a lookup per
+// row would have meant thousands of extra round trips inside a single
+// transaction on a small instance.
+const placeKey = (r) =>
+  [r.branch, r.department, r.physical_location]
+    .map((v) => (v == null ? '' : String(v).trim()))
+    .join('|');
+
+async function resolveLocations(client, rows) {
+  const wanted = new Map();
+
+  for (const r of rows) {
+    const key = placeKey(r);
+    if (key === '||') continue;               // nothing to place it by
+    if (!wanted.has(key)) {
+      wanted.set(key, {
+        branch: r.branch ? String(r.branch).trim() : null,
+        department: r.department ? String(r.department).trim() : null,
+        physical_location: r.physical_location ? String(r.physical_location).trim() : null,
+      });
+    }
+  }
+
+  const ids = new Map();
+  let created = 0;
+
+  for (const [key, place] of wanted) {
+    // IS NOT DISTINCT FROM rather than =, because any of the three may be null
+    // and null = null is not true.
+    const found = await client.query(
+      `SELECT id FROM location
+       WHERE branch IS NOT DISTINCT FROM $1
+         AND department IS NOT DISTINCT FROM $2
+         AND physical_location IS NOT DISTINCT FROM $3
+       LIMIT 1`,
+      [place.branch, place.department, place.physical_location]
+    );
+
+    if (found.rows.length) {
+      ids.set(key, found.rows[0].id);
+      continue;
+    }
+
+    const made = await client.query(
+      `INSERT INTO location (branch, department, physical_location)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [place.branch, place.department, place.physical_location]
+    );
+    ids.set(key, made.rows[0].id);
+    created += 1;
+  }
+
+  return { ids, created };
+}
+
 // POST /import/apply — write the rows the person has just seen.
 async function apply(req, res) {
-  const { rows, mode = 'upsert', filename = 'upload.xlsx', sheets = [] } = req.body;
+  const {
+    rows, mode = 'upsert', filename = 'upload.xlsx', sheets = [],
+    // Set false to write asset records only and leave placement alone. The
+    // sheet's branch spellings are not canonical — "Head Office", "HEAD
+    // OFFICE" and "HO" are all in there — so creating locations from it grows
+    // the branch list until scripts/normalizeBranches.js is run afterwards.
+    link_locations = true,
+  } = req.body;
 
   if (!Array.isArray(rows) || !rows.length) {
     return res.status(400).json({ error: 'No rows to import' });
@@ -325,7 +425,34 @@ async function apply(req, res) {
     const batchId = batch.rows[0].id;
 
     let addedCount = 0, updatedCount = 0, unchangedCount = 0;
+    let placedCount = 0;
     const createdCodes = [];
+
+    // Every distinct place in the file, found or created up front.
+    const { ids: locationIds, created: locationsCreated } =
+      link_locations === false
+        ? { ids: new Map(), created: 0 }
+        : await resolveLocations(client, rows);
+
+    // An open assignment is what gives an asset a branch. Created only where
+    // the asset has none: if somebody has since moved the equipment in the
+    // field, that record is the true one and a spreadsheet must not overwrite
+    // it. NOT EXISTS rather than a read-then-write, so the check and the insert
+    // cannot disagree.
+    const placeAsset = async (assetId, r) => {
+      const locationId = locationIds.get(placeKey(r));
+      if (!locationId) return;
+
+      const done = await client.query(
+        `INSERT INTO assignment (asset_id, location_id, assigned_by)
+         SELECT $1, $2, $3
+         WHERE NOT EXISTS (
+           SELECT 1 FROM assignment WHERE asset_id = $1 AND returned_date IS NULL
+         )`,
+        [assetId, locationId, req.user.id]
+      );
+      if (done.rowCount) placedCount += 1;
+    };
 
     for (const r of rows) {
       const found = await client.query(
@@ -333,20 +460,31 @@ async function apply(req, res) {
       );
 
       if (!found.rows.length) {
-        await client.query(
+        const inserted = await client.query(
           `INSERT INTO asset
              (asset_code, description, serial_number, date_of_purchase, purchase_price,
               supplier, nbv, accumulated_depreciation, chassis_number, engine_number,
+              useful_life_years, remaining_life, monthly_depreciation,
+              current_end_month_date,
               condition, import_batch_id, approval_status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'approved')`,
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'approved')
+           RETURNING id`,
           [r.asset_code, r.description, r.serial_number, r.date_of_purchase,
            r.purchase_price, r.supplier, r.nbv, r.accumulated_depreciation,
-           r.chassis_number, r.engine_number, r.condition, batchId]
+           r.chassis_number, r.engine_number,
+           r.useful_life_years, r.remaining_life, r.monthly_depreciation,
+           r.current_end_month_date,
+           r.condition, batchId]
         );
         addedCount += 1;
         createdCodes.push(r.asset_code);
+        await placeAsset(inserted.rows[0].id, r);
         continue;
       }
+
+      // An asset already in the register may still have no location — every
+      // row imported before this change is in exactly that state.
+      await placeAsset(found.rows[0].id, r);
 
       if (mode === 'add') { unchangedCount += 1; continue; }
 
@@ -362,7 +500,11 @@ async function apply(req, res) {
            nbv = COALESCE($7, nbv),
            accumulated_depreciation = COALESCE($8, accumulated_depreciation),
            chassis_number = COALESCE($9, chassis_number),
-           engine_number = COALESCE($10, engine_number)
+           engine_number = COALESCE($10, engine_number),
+           useful_life_years = COALESCE($11, useful_life_years),
+           remaining_life = COALESCE($12, remaining_life),
+           monthly_depreciation = COALESCE($13, monthly_depreciation),
+           current_end_month_date = COALESCE($14::date, current_end_month_date)
          WHERE asset_code = $1
            AND (
              description IS DISTINCT FROM COALESCE($2, description)
@@ -374,10 +516,16 @@ async function apply(req, res) {
              OR accumulated_depreciation IS DISTINCT FROM COALESCE($8, accumulated_depreciation)
              OR chassis_number IS DISTINCT FROM COALESCE($9, chassis_number)
              OR engine_number IS DISTINCT FROM COALESCE($10, engine_number)
+             OR useful_life_years IS DISTINCT FROM COALESCE($11, useful_life_years)
+             OR remaining_life IS DISTINCT FROM COALESCE($12, remaining_life)
+             OR monthly_depreciation IS DISTINCT FROM COALESCE($13, monthly_depreciation)
+             OR current_end_month_date IS DISTINCT FROM COALESCE($14::date, current_end_month_date)
            )`,
         [r.asset_code, r.description, r.serial_number, r.date_of_purchase,
          r.purchase_price, r.supplier, r.nbv, r.accumulated_depreciation,
-         r.chassis_number, r.engine_number]
+         r.chassis_number, r.engine_number,
+         r.useful_life_years, r.remaining_life, r.monthly_depreciation,
+         r.current_end_month_date]
       );
 
       if (result.rowCount) updatedCount += 1;
@@ -398,7 +546,15 @@ async function apply(req, res) {
       added: addedCount,
       updated: updatedCount,
       unchanged: unchangedCount,
-      message: `${addedCount} added, ${updatedCount} updated, ${unchangedCount} unchanged.`,
+      // Reported rather than silent: creating locations changes what a Branch
+      // Administrator can see, which is too consequential to happen unnoticed.
+      locations_created: locationsCreated,
+      assets_placed: placedCount,
+      message:
+        `${addedCount} added, ${updatedCount} updated, ${unchangedCount} unchanged.` +
+        (placedCount
+          ? ` ${placedCount} given a location (${locationsCreated} new place${locationsCreated === 1 ? '' : 's'}).`
+          : ''),
     });
   } catch (err) {
     await client.query('ROLLBACK');
