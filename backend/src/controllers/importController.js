@@ -76,6 +76,17 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+// A useful life is a small number of years. The Non-Capitalized sheet has 15
+// rows where No. OF YEARS holds values like 358928132569567 — device
+// identifiers pasted into the wrong column — and one of them overflowed the
+// column and stopped the entire import. An implausible value is dropped and
+// flagged, rather than 2,116 good rows failing because of 15 bad cells.
+function toYears(value) {
+  const n = toNumber(value);
+  if (n === null) return null;
+  return n >= 0 && n <= 100 ? n : null;
+}
+
 // Dates are read as calendar dates, not instants.
 //
 // The original import called .toISOString() on a date parsed in local time.
@@ -85,6 +96,10 @@ function toNumber(value) {
 // directly rather than converted.
 function toDate(value) {
   if (!value) return null;
+  // A bare number is not a date. cellDates hands back a real Date for anything
+  // Excel formats as one, so a number means the cell holds something else —
+  // and new Date(717664454) would quietly read as 9 January 1970.
+  if (typeof value === 'number') return null;
 
   const d = value instanceof Date ? value : new Date(value);
   if (isNaN(d)) return null;
@@ -177,8 +192,7 @@ function parseWorkbook(buffer) {
         supplier: pick(row, 'supplier'),
         nbv: toNumber(pick(row, 'nbv')),
         accumulated_depreciation: toNumber(pick(row, 'accDep')),
-        useful_life_years: toNumber(pick(row, 'usefulLife')),
-        remaining_life: toNumber(pick(row, 'remainingLife')),
+        useful_life_years: toYears(pick(row, 'usefulLife')),        remaining_life: toNumber(pick(row, 'remainingLife')),
         monthly_depreciation: toNumber(pick(row, 'monthlyDep')),
         current_end_month_date: toDate(pick(row, 'endMonth')),
         chassis_number: pick(row, 'chassis'),
@@ -195,7 +209,7 @@ function parseWorkbook(buffer) {
         condition_raw: condition ? String(condition).trim() : null,
       };
 
-      // A serial appearing twice is worth flagging but not refusing — two
+            // A serial appearing twice is worth flagging but not refusing — two
       // identical monitors legitimately share a blank serial.
       if (parsed.serial_number && !/^n\/?a$/i.test(parsed.serial_number)) {
         if (seenSerials.has(parsed.serial_number)) {
@@ -203,6 +217,16 @@ function parseWorkbook(buffer) {
         } else {
           seenSerials.set(parsed.serial_number, assetCode);
         }
+      }
+
+      // A cell was present but too implausible to keep. 15 rows on the
+      // Non-Capitalized sheet carry device identifiers in these two columns —
+      // 358928132569567 years of useful life — and one of them overflowed the
+      // column and stopped the whole import before this was caught here.
+      if (pick(row, 'usefulLife') != null && parsed.useful_life_years === null) {
+        parsed.warning = 'Useful life is not a plausible number of years — ignored';
+      } else if (pick(row, 'endMonth') != null && parsed.current_end_month_date === null) {
+        parsed.warning = 'End month date is not a date — ignored';
       }
 
       rows.push(parsed);
