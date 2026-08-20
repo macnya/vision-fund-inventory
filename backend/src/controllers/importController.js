@@ -345,8 +345,11 @@ async function apply(req, res) {
   try {
     await client.query('BEGIN');
 
-    const batch = await client.query(
-      `INSERT INTO import_batch (filename, sheets, imported_by, mode, row_count)
+      const batch = await client.query(
+      // sheet_names and rows_read, per migration 009. This read "sheets" and
+      // "row_count" — names that have never existed — and was never reached
+      // to find out, because the body limit rejected every import first.
+      `INSERT INTO import_batch (filename, sheet_names, imported_by, mode, rows_read)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [filename, sheets, req.user.id, mode, rows.length]
     );

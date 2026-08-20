@@ -92,8 +92,15 @@ export default function Import() {
       setFile(null);
       if (fileRef.current) fileRef.current.value = '';
       loadBatches();
-    } catch (err) {
-      setError(err.response?.data?.error || 'The import failed.');
+        } catch (err) {
+      const d = err.response?.data;
+      // The server names the row and the cause; showing only the headline
+      // sent you to the Render log for something already in the response.
+      setError(
+        [d?.error || 'The import failed.', d?.at, d?.detail]
+          .filter(Boolean)
+          .join(' — ')
+      );
     } finally {
       setBusy(false);
     }
