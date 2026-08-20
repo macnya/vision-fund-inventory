@@ -461,13 +461,7 @@ async function apply(req, res) {
     let addedCount = 0, updatedCount = 0, unchangedCount = 0;
     const createdCodes = [];
 
-    // Every distinct place in the file, found or created up front.
-    const { ids: locationIds, created: locationsCreated, skipped: unplaceable } =
-      link_locations === false
-        ? { ids: new Map(), created: 0, skipped: [] }
-        : await resolveLocations(client, rows);
-
-    // Which codes already exist, in one query rather than one per row. preview
+        // Which codes already exist, in one query rather than one per row. preview
     // already reads the register this way; apply was still asking 2,117 times.
     const { rows: known } = await client.query(
       'SELECT id, asset_code FROM asset WHERE asset_code = ANY($1::text[])',
@@ -485,6 +479,22 @@ async function apply(req, res) {
       [[...idByCode.values()]]
     );
     const alreadyPlaced = new Set(held.map((a) => a.asset_id));
+
+    // Only the rows that will actually be placed.
+    //
+    // These two queries used to run AFTER the location pass, so every distinct
+    // place in the file got a location row whether or not anything needed it.
+    // The first real import created 924 locations and used 15 of them: 909
+    // rows nothing pointed at, which then had to be found and deleted by hand.
+    const needsPlacing = rows.filter((r) => {
+      const id = idByCode.get(r.asset_code);
+      return id === undefined || !alreadyPlaced.has(id);
+    });
+
+    const { ids: locationIds, created: locationsCreated, skipped: unplaceable } =
+      link_locations === false
+        ? { ids: new Map(), created: 0, skipped: [] }
+        : await resolveLocations(client, needsPlacing);
 
     // Collected here and written in one INSERT after the loop.
     const toPlace = [];
