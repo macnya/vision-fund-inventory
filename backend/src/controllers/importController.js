@@ -324,7 +324,84 @@ async function preview(req, res) {
     res.status(500).json({ error: 'Could not read that file. Is it a valid .xlsx?' });
   }
 }
+// Where an asset sits, from the sheet's BRANCH / LOCATION / PHYSICAL LOCATION.
+//
+// WHY THIS EXISTS
+// An asset's branch is not a column on `asset`. It is reached through the
+// asset's open assignment and that assignment's location, which is how every
+// query in the system finds it. The import parsed all three columns and then
+// wrote none of them, so 2,074 of 2,117 imported assets arrived with no branch
+// at all: invisible to a Branch Administrator, absent from Assets by Branch,
+// and excluded from the branch breakdown Finance reports on.
+const placeKey = (r) =>
+  [r.branch, r.department, r.physical_location]
+    .map((v) => (v == null ? '' : String(v).trim()))
+    .join('|');
 
+// Two queries, not two thousand.
+//
+// The first version of this looked up each place and inserted the missing ones
+// one at a time: ~1,900 round trips before a single asset was touched, inside
+// a transaction, on an instance that has to reach Supabase over the network.
+// The whole register is read in one SELECT and the new places written in one
+// INSERT instead.
+async function resolveLocations(client, rows) {
+  const wanted = new Map();
+  const skipped = [];
+
+  for (const r of rows) {
+    // location.branch is NOT NULL. The Intangibles sheet has no BRANCH column
+    // at all — it carries the branch under LOCATION, alongside a PHYSICAL
+    // LOCATION column that actually holds condition text ("In use", "Working").
+    // Guessing which of those is the branch is how this register acquired 86
+    // spellings for 35 places, so a row with no branch is left unplaced and
+    // reported rather than filed somewhere invented.
+    if (!r.branch || !String(r.branch).trim()) {
+      skipped.push(r.asset_code);
+      continue;
+    }
+    const key = placeKey(r);
+    if (!wanted.has(key)) {
+      wanted.set(key, {
+        branch: String(r.branch).trim(),
+        department: r.department ? String(r.department).trim() : null,
+        physical_location: r.physical_location ? String(r.physical_location).trim() : null,
+      });
+    }
+  }
+
+  const ids = new Map();
+
+  // Matched in JS on the same key the sheet is keyed by, so null and '' cannot
+  // disagree the way SQL's null = null would.
+  const { rows: existing } = await client.query(
+    'SELECT id, branch, department, physical_location FROM location'
+  );
+  const byKey = new Map(existing.map((l) => [placeKey(l), l.id]));
+
+  const missing = [];
+  for (const [key, place] of wanted) {
+    const found = byKey.get(key);
+    if (found) ids.set(key, found);
+    else missing.push([key, place]);
+  }
+
+  if (missing.length) {
+    const { rows: made } = await client.query(
+      `INSERT INTO location (branch, department, physical_location)
+       SELECT * FROM unnest($1::text[], $2::text[], $3::text[])
+       RETURNING id, branch, department, physical_location`,
+      [
+        missing.map(([, p]) => p.branch),
+        missing.map(([, p]) => p.department),
+        missing.map(([, p]) => p.physical_location),
+      ]
+    );
+    for (const l of made) ids.set(placeKey(l), l.id);
+  }
+
+  return { ids, created: missing.length, skipped };
+}
 // POST /import/apply — write the rows the person has just seen.
 async function apply(req, res) {
   const {
