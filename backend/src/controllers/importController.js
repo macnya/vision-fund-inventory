@@ -346,13 +346,24 @@ const placeKey = (r) =>
 
 async function resolveLocations(client, rows) {
   const wanted = new Map();
+  const skipped = [];
 
   for (const r of rows) {
+    // location.branch is NOT NULL. The Intangibles sheet has no BRANCH column
+    // at all — it carries the branch under LOCATION, alongside a PHYSICAL
+    // LOCATION column that actually holds condition text ("In use", "Working").
+    // Guessing which of those is the branch is how this register acquired 86
+    // spellings for 35 places, so a row with no branch is left unplaced and
+    // reported rather than filed somewhere invented.
+    if (!r.branch || !String(r.branch).trim()) {
+      skipped.push(r.asset_code);
+      continue;
+    }
+
     const key = placeKey(r);
-    if (key === '||') continue;               // nothing to place it by
     if (!wanted.has(key)) {
       wanted.set(key, {
-        branch: r.branch ? String(r.branch).trim() : null,
+        branch: String(r.branch).trim(),
         department: r.department ? String(r.department).trim() : null,
         physical_location: r.physical_location ? String(r.physical_location).trim() : null,
       });
@@ -388,7 +399,7 @@ async function resolveLocations(client, rows) {
     created += 1;
   }
 
-  return { ids, created };
+  return { ids, created, skipped };
 }
 
 // POST /import/apply — write the rows the person has just seen.
@@ -429,9 +440,9 @@ async function apply(req, res) {
     const createdCodes = [];
 
     // Every distinct place in the file, found or created up front.
-    const { ids: locationIds, created: locationsCreated } =
+    const { ids: locationIds, created: locationsCreated, skipped: unplaceable } =
       link_locations === false
-        ? { ids: new Map(), created: 0 }
+        ? { ids: new Map(), created: 0, skipped: [] }
         : await resolveLocations(client, rows);
 
     // An open assignment is what gives an asset a branch. Created only where
@@ -455,6 +466,7 @@ async function apply(req, res) {
     };
 
     for (const r of rows) {
+      try {
       const found = await client.query(
         'SELECT id FROM asset WHERE asset_code = $1', [r.asset_code]
       );
@@ -530,6 +542,13 @@ async function apply(req, res) {
 
       if (result.rowCount) updatedCount += 1;
       else unchangedCount += 1;
+      } catch (err) {
+        // Which row, so a failure names itself. The constraint that
+        // stopped the first real run gave no clue which of 2,117 rows
+        // had triggered it.
+        err.importRow = `${r.sheet || '?'} row ${r.row || '?'} (${r.asset_code})`;
+        throw err;
+      }
     }
 
     await client.query(
@@ -550,16 +569,29 @@ async function apply(req, res) {
       // Administrator can see, which is too consequential to happen unnoticed.
       locations_created: locationsCreated,
       assets_placed: placedCount,
+      // Named, not just counted: these are the rows whose sheet gives no
+      // branch, so they will not appear under any branch until it is supplied.
+      not_placed: unplaceable.length,
+      not_placed_codes: unplaceable.slice(0, 100),
       message:
         `${addedCount} added, ${updatedCount} updated, ${unchangedCount} unchanged.` +
         (placedCount
           ? ` ${placedCount} given a location (${locationsCreated} new place${locationsCreated === 1 ? '' : 's'}).`
+          : '') +
+        (unplaceable.length
+          ? ` ${unplaceable.length} have no branch in the sheet and were left unplaced.`
           : ''),
     });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error(err);
-    res.status(500).json({ error: 'The import failed and nothing was written.' });
+    console.error('Import failed at', err.importRow || 'the location pass', err);
+    res.status(500).json({
+      error: 'The import failed and nothing was written.',
+      // Admin-only endpoint, so returning the cause is safe — and saves
+      // reading the server log every time a sheet has a surprise in it.
+      detail: err.message,
+      at: err.importRow || null,
+    });
   } finally {
     client.release();
   }
