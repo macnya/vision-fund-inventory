@@ -325,83 +325,6 @@ async function preview(req, res) {
   }
 }
 
-// Where an asset sits, from the sheet's BRANCH / LOCATION / PHYSICAL LOCATION.
-//
-// WHY THIS EXISTS
-// An asset's branch is not a column on `asset`. It is reached through the
-// asset's open assignment and that assignment's location, which is how every
-// query in the system finds it. The import parsed all three columns and then
-// wrote none of them, so 2,074 of 2,117 imported assets arrived with no branch
-// at all: invisible to a Branch Administrator, absent from Assets by Branch,
-// and excluded from the branch breakdown Finance reports on.
-//
-// Resolved in ONE pass over the distinct combinations rather than per row.
-// The register has 2,117 rows but only ~976 distinct places, and a lookup per
-// row would have meant thousands of extra round trips inside a single
-// transaction on a small instance.
-const placeKey = (r) =>
-  [r.branch, r.department, r.physical_location]
-    .map((v) => (v == null ? '' : String(v).trim()))
-    .join('|');
-
-async function resolveLocations(client, rows) {
-  const wanted = new Map();
-  const skipped = [];
-
-  for (const r of rows) {
-    // location.branch is NOT NULL. The Intangibles sheet has no BRANCH column
-    // at all — it carries the branch under LOCATION, alongside a PHYSICAL
-    // LOCATION column that actually holds condition text ("In use", "Working").
-    // Guessing which of those is the branch is how this register acquired 86
-    // spellings for 35 places, so a row with no branch is left unplaced and
-    // reported rather than filed somewhere invented.
-    if (!r.branch || !String(r.branch).trim()) {
-      skipped.push(r.asset_code);
-      continue;
-    }
-
-    const key = placeKey(r);
-    if (!wanted.has(key)) {
-      wanted.set(key, {
-        branch: String(r.branch).trim(),
-        department: r.department ? String(r.department).trim() : null,
-        physical_location: r.physical_location ? String(r.physical_location).trim() : null,
-      });
-    }
-  }
-
-  const ids = new Map();
-  let created = 0;
-
-  for (const [key, place] of wanted) {
-    // IS NOT DISTINCT FROM rather than =, because any of the three may be null
-    // and null = null is not true.
-    const found = await client.query(
-      `SELECT id FROM location
-       WHERE branch IS NOT DISTINCT FROM $1
-         AND department IS NOT DISTINCT FROM $2
-         AND physical_location IS NOT DISTINCT FROM $3
-       LIMIT 1`,
-      [place.branch, place.department, place.physical_location]
-    );
-
-    if (found.rows.length) {
-      ids.set(key, found.rows[0].id);
-      continue;
-    }
-
-    const made = await client.query(
-      `INSERT INTO location (branch, department, physical_location)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [place.branch, place.department, place.physical_location]
-    );
-    ids.set(key, made.rows[0].id);
-    created += 1;
-  }
-
-  return { ids, created, skipped };
-}
-
 // POST /import/apply — write the rows the person has just seen.
 async function apply(req, res) {
   const {
@@ -416,12 +339,6 @@ async function apply(req, res) {
   if (!Array.isArray(rows) || !rows.length) {
     return res.status(400).json({ error: 'No rows to import' });
   }
-  if (!['add', 'upsert'].includes(mode)) {
-    return res.status(400).json({ error: "mode must be 'add' or 'upsert'" });
-  }
-  if (rows.length > 10000) {
-    return res.status(400).json({ error: 'That file is too large to import in one go' });
-  }
 
   const client = await pool.connect();
 
@@ -429,14 +346,13 @@ async function apply(req, res) {
     await client.query('BEGIN');
 
     const batch = await client.query(
-      `INSERT INTO import_batch (filename, sheet_names, mode, rows_read, imported_by)
+      `INSERT INTO import_batch (filename, sheets, imported_by, mode, row_count)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [filename, sheets, mode, rows.length, req.user.id]
+      [filename, sheets, req.user.id, mode, rows.length]
     );
     const batchId = batch.rows[0].id;
 
     let addedCount = 0, updatedCount = 0, unchangedCount = 0;
-    let placedCount = 0;
     const createdCodes = [];
 
     // Every distinct place in the file, found or created up front.
@@ -445,110 +361,126 @@ async function apply(req, res) {
         ? { ids: new Map(), created: 0, skipped: [] }
         : await resolveLocations(client, rows);
 
-    // An open assignment is what gives an asset a branch. Created only where
-    // the asset has none: if somebody has since moved the equipment in the
-    // field, that record is the true one and a spreadsheet must not overwrite
-    // it. NOT EXISTS rather than a read-then-write, so the check and the insert
-    // cannot disagree.
-    const placeAsset = async (assetId, r) => {
+    // Which codes already exist, in one query rather than one per row. preview
+    // already reads the register this way; apply was still asking 2,117 times.
+    const { rows: known } = await client.query(
+      'SELECT id, asset_code FROM asset WHERE asset_code = ANY($1::text[])',
+      [rows.map((r) => r.asset_code)]
+    );
+    const idByCode = new Map(known.map((a) => [a.asset_code, a.id]));
+
+    // An open assignment is what gives an asset a branch, and an asset that
+    // has one is left alone: if somebody has moved the equipment in the field,
+    // that record is the true one and a spreadsheet must not overwrite it.
+    // Read once into a Set, so the common case costs no query at all.
+    const { rows: held } = await client.query(
+      `SELECT DISTINCT asset_id FROM assignment
+       WHERE returned_date IS NULL AND asset_id = ANY($1::int[])`,
+      [[...idByCode.values()]]
+    );
+    const alreadyPlaced = new Set(held.map((a) => a.asset_id));
+
+    // Collected here and written in one INSERT after the loop.
+    const toPlace = [];
+    const place = (assetId, r) => {
+      if (alreadyPlaced.has(assetId)) return;
       const locationId = locationIds.get(placeKey(r));
       if (!locationId) return;
-
-      const done = await client.query(
-        `INSERT INTO assignment (asset_id, location_id, assigned_by)
-         SELECT $1, $2, $3
-         WHERE NOT EXISTS (
-           SELECT 1 FROM assignment WHERE asset_id = $1 AND returned_date IS NULL
-         )`,
-        [assetId, locationId, req.user.id]
-      );
-      if (done.rowCount) placedCount += 1;
+      alreadyPlaced.add(assetId);          // a code cannot repeat, but be sure
+      toPlace.push([assetId, locationId]);
     };
 
     for (const r of rows) {
       try {
-      const found = await client.query(
-        'SELECT id FROM asset WHERE asset_code = $1', [r.asset_code]
-      );
+        const existingId = idByCode.get(r.asset_code);
 
-      if (!found.rows.length) {
-        const inserted = await client.query(
-          `INSERT INTO asset
-             (asset_code, description, serial_number, date_of_purchase, purchase_price,
-              supplier, nbv, accumulated_depreciation, chassis_number, engine_number,
-              useful_life_years, remaining_life, monthly_depreciation,
-              current_end_month_date,
-              condition, import_batch_id, approval_status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'approved')
-           RETURNING id`,
+        if (!existingId) {
+          const inserted = await client.query(
+            `INSERT INTO asset
+               (asset_code, description, serial_number, date_of_purchase, purchase_price,
+                supplier, nbv, accumulated_depreciation, chassis_number, engine_number,
+                useful_life_years, remaining_life, monthly_depreciation,
+                current_end_month_date,
+                condition, import_batch_id, approval_status)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'approved')
+             RETURNING id`,
+            [r.asset_code, r.description, r.serial_number, r.date_of_purchase,
+             r.purchase_price, r.supplier, r.nbv, r.accumulated_depreciation,
+             r.chassis_number, r.engine_number,
+             r.useful_life_years, r.remaining_life, r.monthly_depreciation,
+             r.current_end_month_date,
+             r.condition, batchId]
+          );
+          addedCount += 1;
+          createdCodes.push(r.asset_code);
+          place(inserted.rows[0].id, r);
+          continue;
+        }
+
+        // An asset already in the register may still have no location — every
+        // row imported before this change is in exactly that state.
+        place(existingId, r);
+
+        if (mode === 'add') { unchangedCount += 1; continue; }
+
+        // COALESCE on the incoming value, so a blank cell leaves the existing
+        // value alone rather than erasing it. The IS DISTINCT FROM guard is
+        // what makes "unchanged" mean unchanged: without it every row counts
+        // as updated whether or not anything moved.
+        const result = await client.query(
+          `UPDATE asset SET
+             description = COALESCE($2, description),
+             serial_number = COALESCE($3, serial_number),
+             date_of_purchase = COALESCE($4::date, date_of_purchase),
+             purchase_price = COALESCE($5, purchase_price),
+             supplier = COALESCE($6, supplier),
+             nbv = COALESCE($7, nbv),
+             accumulated_depreciation = COALESCE($8, accumulated_depreciation),
+             chassis_number = COALESCE($9, chassis_number),
+             engine_number = COALESCE($10, engine_number),
+             useful_life_years = COALESCE($11, useful_life_years),
+             remaining_life = COALESCE($12, remaining_life),
+             monthly_depreciation = COALESCE($13, monthly_depreciation),
+             current_end_month_date = COALESCE($14::date, current_end_month_date)
+           WHERE asset_code = $1
+             AND (
+               description IS DISTINCT FROM COALESCE($2, description)
+               OR serial_number IS DISTINCT FROM COALESCE($3, serial_number)
+               OR date_of_purchase IS DISTINCT FROM COALESCE($4::date, date_of_purchase)
+               OR purchase_price IS DISTINCT FROM COALESCE($5, purchase_price)
+               OR supplier IS DISTINCT FROM COALESCE($6, supplier)
+               OR nbv IS DISTINCT FROM COALESCE($7, nbv)
+               OR accumulated_depreciation IS DISTINCT FROM COALESCE($8, accumulated_depreciation)
+               OR chassis_number IS DISTINCT FROM COALESCE($9, chassis_number)
+               OR engine_number IS DISTINCT FROM COALESCE($10, engine_number)
+               OR useful_life_years IS DISTINCT FROM COALESCE($11, useful_life_years)
+               OR remaining_life IS DISTINCT FROM COALESCE($12, remaining_life)
+               OR monthly_depreciation IS DISTINCT FROM COALESCE($13, monthly_depreciation)
+               OR current_end_month_date IS DISTINCT FROM COALESCE($14::date, current_end_month_date)
+             )`,
           [r.asset_code, r.description, r.serial_number, r.date_of_purchase,
            r.purchase_price, r.supplier, r.nbv, r.accumulated_depreciation,
            r.chassis_number, r.engine_number,
            r.useful_life_years, r.remaining_life, r.monthly_depreciation,
-           r.current_end_month_date,
-           r.condition, batchId]
+           r.current_end_month_date]
         );
-        addedCount += 1;
-        createdCodes.push(r.asset_code);
-        await placeAsset(inserted.rows[0].id, r);
-        continue;
-      }
 
-      // An asset already in the register may still have no location — every
-      // row imported before this change is in exactly that state.
-      await placeAsset(found.rows[0].id, r);
-
-      if (mode === 'add') { unchangedCount += 1; continue; }
-
-      // COALESCE on the incoming value, so a blank cell leaves the existing
-      // value alone. A partial upload must not wipe fields it never mentioned.
-      const result = await client.query(
-        `UPDATE asset SET
-           description = COALESCE($2, description),
-           serial_number = COALESCE($3, serial_number),
-           date_of_purchase = COALESCE($4, date_of_purchase),
-           purchase_price = COALESCE($5, purchase_price),
-           supplier = COALESCE($6, supplier),
-           nbv = COALESCE($7, nbv),
-           accumulated_depreciation = COALESCE($8, accumulated_depreciation),
-           chassis_number = COALESCE($9, chassis_number),
-           engine_number = COALESCE($10, engine_number),
-           useful_life_years = COALESCE($11, useful_life_years),
-           remaining_life = COALESCE($12, remaining_life),
-           monthly_depreciation = COALESCE($13, monthly_depreciation),
-           current_end_month_date = COALESCE($14::date, current_end_month_date)
-         WHERE asset_code = $1
-           AND (
-             description IS DISTINCT FROM COALESCE($2, description)
-             OR serial_number IS DISTINCT FROM COALESCE($3, serial_number)
-             OR date_of_purchase IS DISTINCT FROM COALESCE($4::date, date_of_purchase)
-             OR purchase_price IS DISTINCT FROM COALESCE($5, purchase_price)
-             OR supplier IS DISTINCT FROM COALESCE($6, supplier)
-             OR nbv IS DISTINCT FROM COALESCE($7, nbv)
-             OR accumulated_depreciation IS DISTINCT FROM COALESCE($8, accumulated_depreciation)
-             OR chassis_number IS DISTINCT FROM COALESCE($9, chassis_number)
-             OR engine_number IS DISTINCT FROM COALESCE($10, engine_number)
-             OR useful_life_years IS DISTINCT FROM COALESCE($11, useful_life_years)
-             OR remaining_life IS DISTINCT FROM COALESCE($12, remaining_life)
-             OR monthly_depreciation IS DISTINCT FROM COALESCE($13, monthly_depreciation)
-             OR current_end_month_date IS DISTINCT FROM COALESCE($14::date, current_end_month_date)
-           )`,
-        [r.asset_code, r.description, r.serial_number, r.date_of_purchase,
-         r.purchase_price, r.supplier, r.nbv, r.accumulated_depreciation,
-         r.chassis_number, r.engine_number,
-         r.useful_life_years, r.remaining_life, r.monthly_depreciation,
-         r.current_end_month_date]
-      );
-
-      if (result.rowCount) updatedCount += 1;
-      else unchangedCount += 1;
+        if (result.rowCount) updatedCount += 1;
+        else unchangedCount += 1;
       } catch (err) {
-        // Which row, so a failure names itself. The constraint that
-        // stopped the first real run gave no clue which of 2,117 rows
-        // had triggered it.
+        // Which row, so a failure names itself. The constraint that stopped
+        // the first real run gave no clue which of 2,117 rows had caused it.
         err.importRow = `${r.sheet || '?'} row ${r.row || '?'} (${r.asset_code})`;
         throw err;
       }
+    }
+
+    if (toPlace.length) {
+      await client.query(
+        `INSERT INTO assignment (asset_id, location_id, assigned_by)
+         SELECT a, l, $3 FROM unnest($1::int[], $2::int[]) AS t(a, l)`,
+        [toPlace.map((p) => p[0]), toPlace.map((p) => p[1]), req.user.id]
+      );
     }
 
     await client.query(
@@ -568,15 +500,15 @@ async function apply(req, res) {
       // Reported rather than silent: creating locations changes what a Branch
       // Administrator can see, which is too consequential to happen unnoticed.
       locations_created: locationsCreated,
-      assets_placed: placedCount,
+      assets_placed: toPlace.length,
       // Named, not just counted: these are the rows whose sheet gives no
       // branch, so they will not appear under any branch until it is supplied.
       not_placed: unplaceable.length,
       not_placed_codes: unplaceable.slice(0, 100),
       message:
         `${addedCount} added, ${updatedCount} updated, ${unchangedCount} unchanged.` +
-        (placedCount
-          ? ` ${placedCount} given a location (${locationsCreated} new place${locationsCreated === 1 ? '' : 's'}).`
+        (toPlace.length
+          ? ` ${toPlace.length} given a location (${locationsCreated} new place${locationsCreated === 1 ? '' : 's'}).`
           : '') +
         (unplaceable.length
           ? ` ${unplaceable.length} have no branch in the sheet and were left unplaced.`
@@ -596,7 +528,6 @@ async function apply(req, res) {
     client.release();
   }
 }
-
 // GET /import/batches — what has been imported, and by whom.
 async function getBatches(req, res) {
   try {
