@@ -348,17 +348,19 @@ async function preview(req, res) {
     res.status(500).json({ error: 'Could not read that file. Is it a valid .xlsx?' });
   }
 }
-// Where an asset sits, from the sheet's BRANCH / LOCATION / PHYSICAL LOCATION.
+// branch / department / programme / physical_location, all four.
 //
-// WHY THIS EXISTS
-// An asset's branch is not a column on `asset`. It is reached through the
-// asset's open assignment and that assignment's location, which is how every
-// query in the system finds it. The import parsed all three columns and then
-// wrote none of them, so 2,074 of 2,117 imported assets arrived with no branch
-// at all: invisible to a Branch Administrator, absent from Assets by Branch,
-// and excluded from the branch breakdown Finance reports on.
+// This omitted programme, and location rows differ by it: Mombasa alone has
+// five rows — plain, Mwatate, Changamwe, Kilifi and Marafa — that all produced
+// the identical key. byKey is a Map, so the last one read from the database
+// won, and an import row for plain Mombasa would have been filed under
+// whichever programme happened to come back last.
+//
+// The spreadsheet has no programme column, so a parsed row keys as empty and
+// matches only the null-programme row. Which is the correct behaviour: an
+// import cannot know which programme an asset belongs to.
 const placeKey = (r) =>
-  [r.branch, r.department, r.physical_location]
+  [r.branch, r.department, r.programme, r.physical_location]
     .map((v) => (v == null ? '' : String(v).trim()))
     .join('|');
 
