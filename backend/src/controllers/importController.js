@@ -71,7 +71,11 @@ function toNumber(value) {
   // Depreciation column of the Equipments sheet.
   if (typeof value === 'string' && !/\d/.test(value)) return null;
 
-  const cleaned = typeof value === 'string' ? value.replace(/[^0-9.-]/g, '') : value;
+  // A minus sign only counts at the front. Without the second replace,
+  // "VFK-Elnino 2" strips to "-2" and a label becomes a negative number.
+  const cleaned = typeof value === 'string'
+    ? value.replace(/[^0-9.-]/g, '').replace(/(?!^)-/g, '')
+    : value;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
 }
