@@ -107,9 +107,9 @@ function App() {
 
   if (!user) return <Login onLoginSuccess={setUser} />;
 
-  // A temporary password stands between them and the app until it's replaced.
-  // The backend doesn't refuse other endpoints on this flag — it's a prompt,
-  // not a lock — but there's no route past this screen in the UI.
+    // A temporary password stands between them and the app until it's replaced.
+  // The backend refuses every other endpoint while the flag is set, so this
+  // screen is the only way forward rather than merely the only one offered.
   if (user.must_change_password) {
     return <ChangePassword user={user} forced onDone={setUser} />;
   }
