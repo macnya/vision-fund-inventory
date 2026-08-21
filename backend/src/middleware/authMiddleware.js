@@ -22,6 +22,11 @@ const LEGACY_ROLES = {
   'IT Officer': ROLES.OFFICER,
 };
 
+// While must_change_password is set, these are the only paths that work.
+// change-password is the way out; refresh is allowed so the session does not
+// expire underneath somebody in the middle of setting a new one.
+const CHANGE_PASSWORD_ONLY = ['/auth/change-password', '/auth/refresh'];
+
 function canonicalRole(role) {
   return LEGACY_ROLES[role] || role;
 }
@@ -61,7 +66,7 @@ async function verifyToken(req, res, next) {
 
   try {
     const result = await pool.query(
-      'SELECT id, email, role, branch, password_changed_at FROM it_staff WHERE id = $1',
+      'SELECT id, email, role, branch, password_changed_at, must_change_password FROM it_staff WHERE id = $1',
       [decoded.id]
     );
     const account = result.rows[0];
@@ -78,6 +83,20 @@ async function verifyToken(req, res, next) {
       if (decoded.iat && decoded.iat < changedAt - 1) {
         return res.status(401).json({ error: 'Password was changed. Please sign in again.' });
       }
+    }
+
+    // A temporary password gets you far enough to replace it and no further.
+    //
+    // login returns must_change_password and the admin panel redirects on it,
+    // but nothing server-side enforced it: anyone who ignored the redirect, or
+    // used the API directly, kept full access indefinitely on a password an
+    // administrator had chosen for them and still knows.
+    if (account.must_change_password
+        && !CHANGE_PASSWORD_ONLY.includes(req.originalUrl.split('?')[0])) {
+      return res.status(403).json({
+        error: 'You must change your password before continuing',
+        must_change_password: true,
+      });
     }
 
     req.user = {
