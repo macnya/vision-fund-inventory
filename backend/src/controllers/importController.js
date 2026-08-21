@@ -463,11 +463,25 @@ async function apply(req, res) {
 
         // Which codes already exist, in one query rather than one per row. preview
     // already reads the register this way; apply was still asking 2,117 times.
-    const { rows: known } = await client.query(
-      'SELECT id, asset_code FROM asset WHERE asset_code = ANY($1::text[])',
+        const { rows: known } = await client.query(
+      'SELECT id, asset_code, status FROM asset WHERE asset_code = ANY($1::text[])',
       [rows.map((r) => r.asset_code)]
     );
     const idByCode = new Map(known.map((a) => [a.asset_code, a.id]));
+
+    // Disposed and lost assets are not anywhere, and must not be given a
+    // location.
+    //
+    // The register records a holder under the PHYSICAL LOCATION heading, so
+    // that column contains staff names as often as places. The first import to
+    // write placements read "Grace Kimeu" as somewhere an asset could be, made
+    // a location row for her, and opened an assignment against it — on eight
+    // assets written off in December 2024 and two recorded as lost. That put
+    // live custody of equipment that no longer exists onto named people, who
+    // exit clearance would then have chased for it.
+    const goneIds = new Set(
+      known.filter((a) => ['Disposed', 'Lost'].includes(a.status)).map((a) => a.id)
+    );
 
     // An open assignment is what gives an asset a branch, and an asset that
     // has one is left alone: if somebody has moved the equipment in the field,
@@ -488,6 +502,7 @@ async function apply(req, res) {
     // rows nothing pointed at, which then had to be found and deleted by hand.
     const needsPlacing = rows.filter((r) => {
       const id = idByCode.get(r.asset_code);
+      if (id !== undefined && goneIds.has(id)) return false;
       return id === undefined || !alreadyPlaced.has(id);
     });
 
@@ -497,8 +512,12 @@ async function apply(req, res) {
         : await resolveLocations(client, needsPlacing);
 
     // Collected here and written in one INSERT after the loop.
-    const toPlace = [];
+        const toPlace = [];
     const place = (assetId, r) => {
+      // A disposed or lost asset is not anywhere. Checked here as well as in
+      // needsPlacing above: that one stops the location row being created,
+      // this one stops the assignment. Either alone leaves half the problem.
+      if (goneIds.has(assetId)) return;
       if (alreadyPlaced.has(assetId)) return;
       const locationId = locationIds.get(placeKey(r));
       if (!locationId) return;
