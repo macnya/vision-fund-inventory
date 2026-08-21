@@ -29,6 +29,19 @@ api.interceptors.response.use(
       window.location.reload();
     }
 
+    // An administrator has reset this password while the session was live. The
+    // server now refuses every endpoint except change-password and refresh,
+    // but the cached user in storage still says the flag is clear, so nothing
+    // would redirect and each request would fail with no explanation. Clearing
+    // the session sends them through login, which returns the flag and lands
+    // them on the change-password screen. Treated like a 401 because from the
+    // user's side it is the same thing: this session is over.
+    if (status === 403 && error.response?.data?.must_change_password) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.reload();
+    }
+
     return Promise.reject(error);
   }
 );
