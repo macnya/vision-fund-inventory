@@ -20,7 +20,7 @@ const SOURCES = `
   SELECT
     'scan_' || sl.id                         AS event_id,
     sl.action                                AS action,
-    sl.created_at                            AS at,
+    sl.timestamp                             AS at,
     s.name                                   AS actor,
     s.role                                   AS actor_role,
     a.asset_code, a.description,
