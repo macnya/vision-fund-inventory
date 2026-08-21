@@ -12,6 +12,7 @@ import OfflineBanner from './components/OfflineBanner';
 import { startAutoSync, subscribeToSyncState, processPendingActions } from './offline/syncManager';
 import { getAssetByCodeOffline } from './offline/offlineApi';
 import { wakeServer } from './api';
+import ChangePasswordScreen from './screens/ChangePasswordScreen';
 
 export default function App() {
   const [screen, setScreen] = useState('login'); // 'login' | 'home' | 'scanner' | 'assetDetail' | 'activity' | 'createAsset' | 'ask'
@@ -50,17 +51,24 @@ export default function App() {
     };
   }, []);
 
-  const handleLoginSuccess = async () => {
+    const handleLoginSuccess = async () => {
     const userJson = await AsyncStorage.getItem('user');
     if (userJson) {
       const user = JSON.parse(userJson);
       setUserName(user.name || '');
+
+      // A temporary password reaches the home screen and then fails on every
+      // action, because the server allows only change-password and refresh
+      // while the flag is set.
+      if (user.must_change_password) {
+        setScreen('changePassword');
+        return;
+      }
     }
     setScreen('home');
     // Anything queued while the session was expired can go now.
     processPendingActions();
   };
-
   const handleScanSuccess = (data) => {
     setAssetData(data);
     setScreen('assetDetail');
@@ -87,18 +95,19 @@ export default function App() {
     setScreen('home');
   };
 
-  // Wire the phone's own back gesture/button to the same navigation as the
+   // Wire the phone's own back gesture/button to the same navigation as the
   // on-screen control. Without this, Android's back closed the whole app from
   // any screen, which is why the small chevron was the only way out.
   useEffect(() => {
     const onBack = () => {
-      if (screen === 'login' || screen === 'home') {
+      // changePassword is a wall, not a step: backing out of it lands on a
+      // home screen where every action fails with a 403.
+      if (screen === 'login' || screen === 'home' || screen === 'changePassword') {
         return false;      // let Android do its thing: leave the app
       }
       handleBackToHome();
       return true;         // handled — don't exit
     };
-
     const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
     return () => sub.remove();
   }, [screen]);
@@ -131,6 +140,12 @@ export default function App() {
           onSearchResult={handleSearchResult}
           onViewActivity={() => setScreen('activity')}
           onAsk={() => setScreen('ask')}
+          onLogout={handleLogout}
+        />
+      )}
+      {screen === 'changePassword' && (
+        <ChangePasswordScreen
+          onDone={() => { setScreen('home'); processPendingActions(); }}
           onLogout={handleLogout}
         />
       )}
