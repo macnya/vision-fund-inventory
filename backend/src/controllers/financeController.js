@@ -121,7 +121,7 @@ async function getDisposals(req, res) {
         : ` AND d.disposal_month <= $${params.length}`;
     }
 
-    const { rows } = await pool.query(
+        const { rows } = await pool.query(
       `SELECT a.asset_code, a.description,
               ac.name AS category,
               d.disposal_month, d.base_gross_value, d.accumulated_depreciation,
@@ -131,8 +131,25 @@ async function getDisposals(req, res) {
        JOIN asset a ON a.id = d.asset_id
        LEFT JOIN asset_category ac ON ac.id = a.asset_category_id
        LEFT JOIN it_staff s ON s.id = d.disposed_by
-       LEFT JOIN assignment ag ON ag.asset_id = a.id
-       LEFT JOIN location l ON l.id = ag.location_id
+       -- The last place this asset was, not the current one.
+       --
+       -- A plain LEFT JOIN on assignment produced a row per assignment the
+       -- asset ever had, and the totals below are summed in JS from these
+       -- rows, so proceeds and gain were multiplied by however many times it
+       -- had changed hands. Adding returned_date IS NULL fixes the count but
+       -- empties the branch: 166 of 175 disposals have no open assignment,
+       -- because closing it is part of disposing of the asset. LATERAL takes
+       -- exactly one row — the open assignment if there is one, otherwise the
+       -- most recently returned — so each disposal is counted once AND keeps
+       -- the branch a scoped user filters on.
+       LEFT JOIN LATERAL (
+         SELECT lo.branch
+         FROM assignment ag
+         JOIN location lo ON lo.id = ag.location_id
+         WHERE ag.asset_id = a.id
+         ORDER BY ag.returned_date DESC NULLS FIRST, ag.assigned_date DESC, ag.id DESC
+         LIMIT 1
+       ) l ON TRUE
        WHERE ($1::text IS NULL OR l.branch = $1)${dateClause}
        ORDER BY d.disposal_month DESC NULLS LAST
        LIMIT 500`,
