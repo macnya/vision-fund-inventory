@@ -204,11 +204,17 @@ export async function fetchEmployeesList() {
   return res.data;
 }
 
-export async function createAssignment({ asset_id, employee_id, location_id, latitude, longitude }) {
-  const res = await api.post('/assignments', { asset_id, employee_id, location_id, latitude, longitude });
+// Ask to assign an asset, or move it. Nothing takes effect until an Admin
+// approves it — this used to POST /assignments, which wrote immediately and
+// bypassed the review the scanner has always gone through.
+export async function requestCustodyChange({
+  asset_id, kind = 'assign', employee_id, location_id, condition, notes, latitude, longitude,
+}) {
+  const res = await api.post('/custody/request', {
+    asset_id, kind, employee_id, location_id, condition, notes, latitude, longitude,
+  });
   return res.data;
 }
-
 // --- Approvals ------------------------------------------------------------
 // Drives the badge in the navigation. Returns only what the caller may
 // actually review — their own submissions are excluded server-side.

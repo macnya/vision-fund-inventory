@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { fetchAssetLocations, fetchLocationsList, fetchEmployeesList, createAssignment } from '../api';
+import { fetchAssetLocations, fetchLocationsList, fetchEmployeesList, requestCustodyChange } from '../api';
 import { colors } from '../theme';
 import { canChangeAssets } from '../roles';
 
@@ -200,28 +200,38 @@ export default function AssetLocations({ onSelectAsset }) {
 function AssetPopupContent({ asset, locations, employees, canAssign, onSelectAsset, onAssigned }) {
   const [locationId, setLocationId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
+  const [condition, setCondition] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
+    // The backend requires a condition when equipment goes to a person — that
+  // record is what makes HR 9.3b enforceable if it comes back damaged. Moving
+  // an asset to a location doesn't need one.
   const handleAssign = async () => {
     if (!locationId && !employeeId) {
       setMessage('Pick a branch or a person first.');
       return;
     }
+    if (employeeId && !condition) {
+      setMessage('Record the condition it is being handed over in.');
+      return;
+    }
     setSaving(true);
     setMessage('');
     try {
-      await createAssignment({
+      await requestCustodyChange({
         asset_id: asset.id,
+        kind: 'assign',
         location_id: locationId || null,
         employee_id: employeeId || null,
+        condition: employeeId ? condition : null,
         latitude: asset.latitude,
         longitude: asset.longitude,
       });
-      setMessage('Updated.');
+      setMessage('Requested. An Admin must approve it before it takes effect.');
       await onAssigned();
     } catch (err) {
-      setMessage(err.response?.data?.error || 'Failed to update.');
+      setMessage(err.response?.data?.error || 'Failed to request the change.');
     } finally {
       setSaving(false);
     }
@@ -261,7 +271,7 @@ function AssetPopupContent({ asset, locations, employees, canAssign, onSelectAss
             ))}
           </select>
 
-          <label style={popupLabelStyle}>Assign to</label>
+                   <label style={popupLabelStyle}>Assign to</label>
           <select
             value={employeeId}
             onChange={(e) => setEmployeeId(e.target.value)}
@@ -273,14 +283,36 @@ function AssetPopupContent({ asset, locations, employees, canAssign, onSelectAss
             ))}
           </select>
 
+          {/* Required by the backend when equipment goes to a person: that
+              record is what makes HR 9.3b enforceable if it comes back
+              damaged. Shown only for a person, since moving an asset to a
+              location does not need one. */}
+          {employeeId && (
+            <>
+              <label style={popupLabelStyle}>Condition at handover</label>
+              <select
+                value={condition}
+                onChange={(e) => setCondition(e.target.value)}
+                style={popupSelectStyle}
+              >
+                <option value="">— Select —</option>
+                <option value="Good">Good</option>
+                <option value="Good with issues">Good with issues</option>
+                <option value="Faulty">Faulty</option>
+              </select>
+            </>
+          )}
+
+          {/* "Request", not "Save": this no longer writes to the register. An
+              Admin reviews it on the Approvals page first. */}
           <button
             onClick={handleAssign}
             disabled={saving}
             style={{ marginTop: 6, width: '100%', padding: '5px 10px', background: colors.primary, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}
           >
-            {saving ? 'Saving...' : 'Save Assignment'}
+            {saving ? 'Sending...' : 'Request Change'}
           </button>
-          {message && <div style={{ marginTop: 6, fontSize: 11, color: message === 'Updated.' ? colors.success : colors.danger }}>{message}</div>}
+          {message && <div style={{ marginTop: 6, fontSize: 11, color: message.startsWith('Requested') ? colors.success : colors.danger }}>{message}</div>}
         </div>
       )}
 
